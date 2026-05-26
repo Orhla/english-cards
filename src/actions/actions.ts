@@ -10,6 +10,7 @@ type ActionGetCardsStatus =
 export async function getAllEnglishCards(): Promise<ActionGetCardsStatus> {
     try {
         const allCards = await prisma.wordCard.findMany();
+        // момент в том, что сейчас все карточки выдаются в одном и том же формате. нам же надо какую-то рандомизацию. представь 20.000 карточек и нам нужно рандомно каждый раз выдавать.
         return {success: true, data: allCards};
     } catch (error) {
         return {success: false, message: error instanceof Error ? error.message : "Не удалось загрузить карточки. Попробуйте позже."}
