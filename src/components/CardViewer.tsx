@@ -13,16 +13,17 @@ export default function CardViewer({cards}: Props) {
     const [isFlipped, setIsFlipped] = useState<boolean>(false);
     const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
     // похоже на какой-то костыль. надо его избегать. Давай попробуем вместе.
-    const [skipAnimation, setSkipAnimation] = useState<boolean>(false);
+    // const [skipAnimation, setSkipAnimation] = useState<boolean>(false);
 
     const changeCard = (nextIndex: number) => {
-        setSkipAnimation(true);
+        // setSkipAnimation(true);
         setIsFlipped(false);
         setCurrentCardIndex(nextIndex);
-        setTimeout(() => {
-            // первое правило реакта - если мы ставим странный таймаут - значит что-то идет на так.
-            setSkipAnimation(false);
-        }, 50);
+
+        // setTimeout(() => {
+        //     первое правило реакта - если мы ставим странный таймаут - значит что-то идет на так.
+            // setSkipAnimation(false);
+        // }, 50);
     }
 
     const handlePrev = () => {
@@ -48,9 +49,9 @@ export default function CardViewer({cards}: Props) {
           className="w-full max-w-[360px] h-[260px] [perspective:1000px] cursor-pointer"
           onClick={() => setIsFlipped(!isFlipped)}
         >
-          <div className={`relative w-full h-full [transform-style:preserve-3d] 
-              ${skipAnimation ? '' : 'transition-transform duration-500'}
-              ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
+          <div key={card.id}
+               className={`relative w-full h-full transform-3d transition-transform duration-500'
+              ${isFlipped ? 'transform-[rotateY(180deg)]' : ''}`}>
 
             {/* ЛИЦЕВАЯ СТОРОНА */}
             <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col justify-between p-6">
@@ -74,7 +75,7 @@ export default function CardViewer({cards}: Props) {
             </div>
 
             {/* ОБРАТНАЯ СТОРОНА */}
-            <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-indigo-600 text-white rounded-2xl shadow-md flex flex-col justify-between p-6 [transform:rotateY(180deg)] overflow-y-auto">
+            <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-indigo-600 text-white rounded-2xl shadow-md flex flex-col justify-between p-6 transform-3d transition-transform transform-[rotateY(180deg)] duration-500 overflow-y-auto">
               <div>
                 {/* Переводы (выводим через запятую) */}
                 <h4 className="text-xl font-bold tracking-wide border-b border-indigo-500/50 pb-2">
