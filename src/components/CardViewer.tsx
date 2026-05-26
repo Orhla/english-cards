@@ -12,6 +12,7 @@ type Props = {
 export default function CardViewer({cards}: Props) {
     const [isFlipped, setIsFlipped] = useState<boolean>(false);
     const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
+    // похоже на какой-то костыль. надо его избегать. Давай попробуем вместе.
     const [skipAnimation, setSkipAnimation] = useState<boolean>(false);
 
     const changeCard = (nextIndex: number) => {
@@ -19,6 +20,7 @@ export default function CardViewer({cards}: Props) {
         setIsFlipped(false);
         setCurrentCardIndex(nextIndex);
         setTimeout(() => {
+            // первое правило реакта - если мы ставим странный таймаут - значит что-то идет на так.
             setSkipAnimation(false);
         }, 50);
     }
