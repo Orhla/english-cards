@@ -11,16 +11,17 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  //   создание .env.example - хорошая практика
 }
 
-model WordCard { 
-  id                Int      @id @default(autoincrement())
-  word              String
-  partsOfSpeech     partOfSpeech[]
-  transcription     String   
-  translation       String[]
-  meaning           String[]
-  examples          String[]
+model WordCard {
+  id            Int            @id @default(autoincrement())
+  word          String
+  partsOfSpeech partOfSpeech[]
+  transcription String
+  translation   String[]
+  meaning       String[]
+  examples      String[]
 }
 
 enum partOfSpeech {

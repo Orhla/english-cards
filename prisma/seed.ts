@@ -2,34 +2,35 @@ import 'dotenv/config';
 import { prisma } from "@/lib/prisma";
 import { partOfSpeech } from "@/generated/prisma/enums";
 
+// классные словечки. Я их не знаю )))
 const wordCards = await prisma.wordCard.createMany({
   data: [
     { word: "ubiquitous",
-      partsOfSpeech: [partOfSpeech.adjective], 
-      transcription: "/juːˈbɪk.wɪ.təs/", 
+      partsOfSpeech: [partOfSpeech.adjective],
+      transcription: "/juːˈbɪk.wɪ.təs/",
       translation: ["повсеместный",
                     "вездесущий",
                     "распространенный"
-      ], 
-      meaning: ["existing or being everywhere at the same time", 
+      ],
+      meaning: ["existing or being everywhere at the same time",
                 "constantly encountered",
                 "widespread"
-            ], 
+            ],
       examples: ["Smartphones are used ubiquitously by young people.",
                  "The company's ads are ubiquitous."
                 ]
     },
 
     { word: "alleviate",
-      partsOfSpeech: [partOfSpeech.verb], 
-      transcription: "/əˈliː.vi.eɪt/", 
+      partsOfSpeech: [partOfSpeech.verb],
+      transcription: "/əˈliː.vi.eɪt/",
       translation: ["облегчать",
                     "смягчать",
                     "снизить"
-      ], 
-      meaning: ["to make (something, such as pain or suffering) more bearable", 
+      ],
+      meaning: ["to make (something, such as pain or suffering) more bearable",
                 "to partially remove or correct (something undesirable)"
-            ], 
+            ],
       examples: ["a drug that alleviates the symptoms",
                  "using relaxation techniques to alleviate stress",
                  "government programs to alleviate poverty",
@@ -38,17 +39,17 @@ const wordCards = await prisma.wordCard.createMany({
     },
 
     { word: "meticulous",
-      partsOfSpeech: [partOfSpeech.adjective], 
-      transcription: "/məˈtɪk.jə.ləs/", 
+      partsOfSpeech: [partOfSpeech.adjective],
+      transcription: "/məˈtɪk.jə.ləs/",
       translation: ["тщательный",
                     "дотошный",
                     "скрупулезный",
                     "педантичный",
                     "кропотливый"
-      ], 
-      meaning: ["very careful about doing something in an extremely accurate and exact way", 
+      ],
+      meaning: ["very careful about doing something in an extremely accurate and exact way",
                 "showing or requiring extreme care and attention to detail"
-            ], 
+            ],
       examples: ["Scientists must be meticulous when conducting experiments or recording data to ensure accurate results.",
                  "keeps meticulous records",
                  "a meticulous researcher",

@@ -1,6 +1,7 @@
 "use client"
 
 import { WordCard } from "@/generated/prisma/browser";
+// вот тут есть плюсы и минусы. Плюсы - мы переиспользуем "призма модель" не надо делать промежуточные типы. Минусы - мы привязаны к призма модели. Любое изменение в модели дойдет до компонента.
 import { useState } from "react";
 import ArrowButton from "@/components/ArrowButton";
 
@@ -37,17 +38,18 @@ export default function CardViewer({cards}: Props) {
     const card = cards[currentCardIndex];
 
     return (
+      //   тут не должно быть мейн больше. Мейн где-то в пейдж или лучше в лейаут.
       <main className="flex items-center justify-center gap-6 w-full max-w-[550px]">
         <ArrowButton direction="left"
                      onClick={handlePrev} />
-        <div 
+        <div
           className="w-full max-w-[360px] h-[260px] [perspective:1000px] cursor-pointer"
           onClick={() => setIsFlipped(!isFlipped)}
         >
           <div className={`relative w-full h-full [transform-style:preserve-3d] 
               ${skipAnimation ? '' : 'transition-transform duration-500'}
               ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}>
-            
+
             {/* ЛИЦЕВАЯ СТОРОНА */}
             <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col justify-between p-6">
               {/* Верхняя панель: Части речи */}
@@ -82,6 +84,7 @@ export default function CardViewer({cards}: Props) {
                   <div className="mt-3 space-y-1">
                     <p className="text-[11px] text-indigo-200 uppercase font-bold tracking-wider">Значение:</p>
                     <ul className="list-disc list-inside text-xs text-indigo-100 space-y-0.5">
+                      {/*  индекс как ключ - не самая лучшая привычка, мы обсуждали уже.*/}
                       {card.meaning.map((m, idx) => <li key={idx}>{m}</li>)}
                     </ul>
                   </div>
@@ -92,6 +95,7 @@ export default function CardViewer({cards}: Props) {
                   <div className="mt-4 space-y-1">
                     <p className="text-[11px] text-indigo-200 uppercase font-bold tracking-wider">Примеры:</p>
                     <ul className="text-xs italic text-white/90 space-y-1 pl-1 border-l-2 border-indigo-400">
+                      {/*  индекс-ключ */}
                       {card.examples.map((ex, idx) => <li key={idx}>“{ex}”</li>)}
                     </ul>
                   </div>
