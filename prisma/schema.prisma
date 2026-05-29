@@ -11,16 +11,19 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  //   создание .env.example - хорошая практика
 }
 
-model WordCard { 
-  id                Int      @id @default(autoincrement())
-  word              String
-  partsOfSpeech     partOfSpeech[]
-  transcription     String   
-  translation       String[]
-  meaning           String[]
-  examples          String[]
+model WordCard {
+  id            Int            @id @default(autoincrement())
+  word          String
+  partsOfSpeech partOfSpeech[]
+  // 1. надо поле для аудио, кстати. Аудио - во первых надо создать с помошью ТТС, а во вторых - как-то хранить. Оба технических челленджа надо сделать.
+  transcription String
+  // 2. что такое нормализация данны и зачем она нужна - обсудить. Плюс варианты группировок формата "хочу учить похожие слова". 
+  translation   String[]
+  meaning       String[]
+  examples      String[]
 }
 
 enum partOfSpeech {
