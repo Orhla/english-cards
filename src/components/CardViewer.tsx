@@ -4,6 +4,7 @@ import { WordCard } from "@/generated/prisma/browser";
 // вот тут есть плюсы и минусы. Плюсы - мы переиспользуем "призма модель" не надо делать промежуточные типы. Минусы - мы привязаны к призма модели. Любое изменение в модели дойдет до компонента.
 import { useState } from "react";
 import ArrowButton from "@/components/ArrowButton";
+import ErrorMessage from "@/components/ErrorMessage";
 
 type Props = {
     cards: WordCard[]
@@ -12,18 +13,10 @@ type Props = {
 export default function CardViewer({cards}: Props) {
     const [isFlipped, setIsFlipped] = useState<boolean>(false);
     const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
-    // похоже на какой-то костыль. надо его избегать. Давай попробуем вместе.
-    // const [skipAnimation, setSkipAnimation] = useState<boolean>(false);
-
+    
     const changeCard = (nextIndex: number) => {
-        // setSkipAnimation(true);
         setIsFlipped(false);
         setCurrentCardIndex(nextIndex);
-
-        // setTimeout(() => {
-        //     первое правило реакта - если мы ставим странный таймаут - значит что-то идет на так.
-            // setSkipAnimation(false);
-        // }, 50);
     }
 
     const handlePrev = () => {
@@ -35,22 +28,23 @@ export default function CardViewer({cards}: Props) {
     };
 
     if (!cards || cards.length === 0) {
-        return <div className="text-gray-500">Список карточек пуст</div>;
+      return (
+        <ErrorMessage message="Список карточек пуст" />
+      )
     }
 
     const card = cards[currentCardIndex];
 
     return (
-      //   тут не должно быть мейн больше. Мейн где-то в пейдж или лучше в лейаут.
-      <main className="flex items-center justify-center gap-6 w-full max-w-[550px]">
+      <div className="flex items-center justify-center gap-6 w-full max-w-[650px]">
         <ArrowButton direction="left"
                      onClick={handlePrev} />
         <div
-          className="w-full max-w-[360px] h-[260px] [perspective:1000px] cursor-pointer"
+          className="w-full max-w-[450px] h-[320px] [perspective:1000px] cursor-pointer"
           onClick={() => setIsFlipped(!isFlipped)}
         >
           <div key={card.id}
-               className={`relative w-full h-full transform-3d transition-transform duration-500'
+               className={`relative w-full h-full transform-3d transition-transform duration-700
               ${isFlipped ? 'transform-[rotateY(180deg)]' : ''}`}>
 
             {/* ЛИЦЕВАЯ СТОРОНА */}
@@ -75,7 +69,7 @@ export default function CardViewer({cards}: Props) {
             </div>
 
             {/* ОБРАТНАЯ СТОРОНА */}
-            <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-indigo-600 text-white rounded-2xl shadow-md flex flex-col justify-between p-6 transform-3d transition-transform transform-[rotateY(180deg)] duration-500 overflow-y-auto">
+            <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-indigo-600 text-white rounded-2xl shadow-md flex flex-col justify-between p-6 transform-3d transition-transform transform-[rotateY(180deg)] duration-700 overflow-y-auto">
               <div>
                 {/* Переводы (выводим через запятую) */}
                 <h4 className="text-xl font-bold tracking-wide border-b border-indigo-500/50 pb-2">
@@ -88,7 +82,7 @@ export default function CardViewer({cards}: Props) {
                     <p className="text-[11px] text-indigo-200 uppercase font-bold tracking-wider">Значение:</p>
                     <ul className="list-disc list-inside text-xs text-indigo-100 space-y-0.5">
                       {/*  индекс как ключ - не самая лучшая привычка, мы обсуждали уже.*/}
-                      {card.meaning.map((m, idx) => <li key={idx}>{m}</li>)}
+                      {card.meaning.map((m) => <li key={m}>{m}</li>)}
                     </ul>
                   </div>
                 )}
@@ -99,7 +93,7 @@ export default function CardViewer({cards}: Props) {
                     <p className="text-[11px] text-indigo-200 uppercase font-bold tracking-wider">Примеры:</p>
                     <ul className="text-xs italic text-white/90 space-y-1 pl-1 border-l-2 border-indigo-400">
                       {/*  индекс-ключ */}
-                      {card.examples.map((ex, idx) => <li key={idx}>“{ex}”</li>)}
+                      {card.examples.map((ex) => <li key={ex}>“{ex}”</li>)}
                     </ul>
                   </div>
                 )}
@@ -114,6 +108,6 @@ export default function CardViewer({cards}: Props) {
 
         <ArrowButton direction="right"
                      onClick={handleNext} />
-      </main>
+      </div>
   );
 }
