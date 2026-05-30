@@ -10,7 +10,7 @@ const wordCards = await prisma.wordCard.createMany({
       transcription: "/juːˈbɪk.wɪ.təs/",
       translation: ["повсеместный",
                     "вездесущий",
-                    "распространенный"
+                    "распространённый"
       ],
       meaning: ["existing or being everywhere at the same time",
                 "constantly encountered",
@@ -43,7 +43,7 @@ const wordCards = await prisma.wordCard.createMany({
       transcription: "/məˈtɪk.jə.ləs/",
       translation: ["тщательный",
                     "дотошный",
-                    "скрупулезный",
+                    "скрупулёзный",
                     "педантичный",
                     "кропотливый"
       ],
