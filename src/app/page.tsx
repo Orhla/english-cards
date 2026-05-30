@@ -1,11 +1,13 @@
 import CardViewer from "@/components/CardViewer";
 import { getAllEnglishCards } from "@/actions/actions";
+import ErrorMessage from "@/components/ErrorMessage";
 
 export default async function EnglishCards() {
   const allCards = await getAllEnglishCards();
   if (!allCards.success) {
-    // ну тут бы лучше вернуть компонент, а не строку. Еще лучше - для ошибки отдельный переиспользуемый компонент
-    return allCards.message;
+    return (
+      <ErrorMessage message={allCards.message} />
+    )
   }
 
   return (
