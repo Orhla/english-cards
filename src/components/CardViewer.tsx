@@ -6,6 +6,7 @@ import { useState } from "react";
 import ArrowButton from "@/components/ArrowButton";
 import ErrorMessage from "@/components/ErrorMessage";
 import { RussianMeaningSpeechRecognition } from "@/lib/speech-recognition";
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'
 
 type Props = {
     cards: WordCard[]
