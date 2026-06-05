@@ -1,4 +1,4 @@
-export async function withRetry<T>(fn: () => Promise<T>, attempts: number, delay: number = 1000): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, attempts: number = 5, delay: number = 1000): Promise<T> {
 
     if (attempts <= 0) {
         throw new Error("Параметр attempts должен быть больше 0");
