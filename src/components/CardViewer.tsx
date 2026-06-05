@@ -2,11 +2,11 @@
 
 import { WordCard } from "@/generated/prisma/browser";
 // вот тут есть плюсы и минусы. Плюсы - мы переиспользуем "призма модель" не надо делать промежуточные типы. Минусы - мы привязаны к призма модели. Любое изменение в модели дойдет до компонента.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ArrowButton from "@/components/ArrowButton";
 import ErrorMessage from "@/components/ErrorMessage";
-import { RussianMeaningSpeechRecognition } from "@/lib/speech-recognition";
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition'
+import { RUSSIAN_RU_LANG_CODE } from "@/lib/consts";
 
 type Props = {
     cards: WordCard[]
@@ -15,8 +15,7 @@ type Props = {
 enum CardStatus {
   idle = 'idle',
   success = 'success',
-  error = 'error',
-  listening = 'listening'
+  error = 'error'
 }
 
 export default function CardViewer({cards}: Props) {
@@ -24,8 +23,23 @@ export default function CardViewer({cards}: Props) {
     const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
     const [checkStatus, setCheckStatus] = useState<CardStatus>(CardStatus.idle);
     const [recognizedText, setRecognizedText] = useState<string>("");
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     
+    const {
+      transcript,
+      resetTranscript,
+      listening,
+      browserSupportsSpeechRecognition,
+      isMicrophoneAvailable,
+    } = useSpeechRecognition()
+
     const changeCard = (nextIndex: number) => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+
+        SpeechRecognition.stopListening();
+        resetTranscript();
         setIsFlipped(false);
         setCheckStatus(CardStatus.idle);
         setRecognizedText("");
@@ -48,11 +62,52 @@ export default function CardViewer({cards}: Props) {
 
     const card = cards[currentCardIndex];
 
+    useEffect(() => {
+      if (!listening && transcript) {
+        setRecognizedText(transcript.toLowerCase().trim());
+        setIsFlipped(true);
+
+        const isInTranslation = card.translation.some(
+          (word) => word.toLowerCase().trim() === transcript.toLowerCase().trim()
+        );
+
+        setCheckStatus(isInTranslation ? CardStatus.success : CardStatus.error);
+      }
+    }, [listening]);
+
+
+    const toggleMic = (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (audioRef.current) {
+          audioRef.current.pause();
+      }
+
+      if (!browserSupportsSpeechRecognition) {
+        alert("Ваш браузер не поддерживает распознавание речи.");
+        return;
+      }
+
+      if (!isMicrophoneAvailable) {
+        alert("Доступ к микрофону заблокирован.");
+        return;
+      }
+
+      if (listening) {
+        SpeechRecognition.stopListening();
+      } else {
+        resetTranscript();
+        setRecognizedText("");
+        setCheckStatus(CardStatus.idle);
+        SpeechRecognition.startListening({ language: RUSSIAN_RU_LANG_CODE });
+      }
+    };
+
     return (
       <div className="flex flex-col items-center gap-6 w-full max-w-[650px]">
 
         <div className="h-14 w-full max-w-[450px] flex items-center justify-center transition-all duration-300">
-          {checkStatus === CardStatus.listening && (
+          {listening && (
             <div className="text-sm font-medium text-amber-600 bg-amber-50 px-4 py-2 rounded-xl border border-amber-200 animate-pulse">
               Слушаю вас... Говорите перевод
             </div>
@@ -116,7 +171,11 @@ export default function CardViewer({cards}: Props) {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        new Audio(`/audio/${card.word}.ogg`).play()
+                        if (audioRef.current) {
+                          audioRef.current.pause();
+                        }
+                        audioRef.current = new Audio(`/audio/${card.word}.ogg`);
+                        audioRef.current.play();
                       }}
                       className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors"
                       title="Прослушать произношение"
@@ -134,25 +193,7 @@ export default function CardViewer({cards}: Props) {
                     </button>
 
                     <button 
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const userWord = await RussianMeaningSpeechRecognition();
-                            const isInTranslation = card.translation.some(word => word.toLowerCase().trim() === userWord.toLowerCase().trim())
-                            setIsFlipped(true);
-                            setRecognizedText(userWord);
-                            if (isInTranslation) {
-                              setCheckStatus(CardStatus.success);
-                            }
-                            else {
-                              setCheckStatus(CardStatus.error);
-                            }
-                          } catch (error) {
-                            console.error("Ошибка при распознавании речи:", error);
-                            setIsFlipped(true);
-                            setCheckStatus(CardStatus.error);
-                          }
-                        }}
+                        onClick={toggleMic}
                         className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
                         title="Записать свой перевод"
                       >
