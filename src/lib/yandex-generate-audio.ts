@@ -1,12 +1,16 @@
 import { createWriteStream } from "fs";
-import { AUDIO_DIR, ENGLISH_US_LANG_CODE, YANDEX_API_KEY, YANDEX_BASE_URL } from "@/lib/consts";
+import { YANDEX_BASE_URL } from "@/lib/consts";
 import { Writable } from "stream";
 import { unlink } from "fs/promises";
 import { WordCard } from "@/generated/prisma/browser";
 import { access } from 'fs/promises';
 
-export async function generateEnglishAudioFile(card: WordCard) {
-    const audioPath = `${AUDIO_DIR}/${card.word}.ogg`
+export async function generateEnglishAudioFile(card: WordCard, langCode: string, audioDir: string, yandexApiKey:string) {
+    if (!yandexApiKey) {
+        throw new Error("Отсутствует YANDEX_API_KEY. Пожалуйста, установите его в переменных окружения.");
+    }
+
+    const audioPath = `${audioDir}/${card.word}.ogg`
     try {
         await access(audioPath);
         return;
@@ -15,18 +19,18 @@ export async function generateEnglishAudioFile(card: WordCard) {
             throw error;
         }
     }
-    
+
     const params = new URLSearchParams({
                         text: card.word,
-                        lang: ENGLISH_US_LANG_CODE,
+                        lang: langCode,
                         format: "oggopus",
                         voice: "john"
                     });
-        
+
     const response = await fetch(YANDEX_BASE_URL, {
         method: "POST",
         headers: {
-            "Authorization": `Api-Key ${YANDEX_API_KEY}`,
+            "Authorization": `Api-Key ${yandexApiKey}`,
             "Content-Type": "application/x-www-form-urlencoded"
         },
         body: params
