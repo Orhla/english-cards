@@ -1,11 +1,11 @@
 import { createWriteStream } from "fs";
-import { YANDEX_BASE_URL } from "@/lib/consts";
+import { AUDIO_DIR, YANDEX_API_KEY, YANDEX_BASE_URL } from "@/lib/consts";
 import { Writable } from "stream";
 import { unlink } from "fs/promises";
 import { WordCard } from "@/generated/prisma/browser";
 import { access } from 'fs/promises';
 
-export async function generateEnglishAudioFile(card: WordCard, langCode: string, audioDir: string, yandexApiKey:string) {
+export async function generateEnglishAudioFile(card: WordCard, langCode: string, audioDir: string = AUDIO_DIR, yandexApiKey: string | undefined = YANDEX_API_KEY) {
     if (!yandexApiKey) {
         throw new Error("Отсутствует YANDEX_API_KEY. Пожалуйста, установите его в переменных окружения.");
     }

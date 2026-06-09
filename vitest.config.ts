@@ -7,6 +7,11 @@ export default defineConfig({
         environment: 'jsdom',
         globals: true,
         setupFiles: './src/test/setup.ts',
+        coverage: {
+            provider: 'v8',
+            include: ['src/lib/yandex-generate-audio.ts'],
+            reporter: ['text', 'html'],
+        }
     },
     resolve: {
         alias: { '@': '/src' },
