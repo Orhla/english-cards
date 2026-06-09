@@ -14,6 +14,6 @@ export default async function EnglishCards() {
   return (
     <div className="w-full min-h-0 flex-1 flex items-center justify-center bg-gray-50 p-4 overflow-hidden">
       <CardViewer cards={allCards.data}
-                  mode={Mode.translation} />
+                  mode={Mode.pronunciation} />
     </div>);
 }

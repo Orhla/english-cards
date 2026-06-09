@@ -44,3 +44,6 @@ next-env.d.ts
 # database-data
 /postgres-data*
 /src/generated/prisma
+
+# generated audio files
+/public/audio/
