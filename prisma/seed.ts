@@ -56,5 +56,36 @@ const wordCards = await prisma.wordCard.createMany({
                  "She was meticulous about keeping her expense receipts properly filed."
                 ]
     },
+
+    { word: "pervasive",
+      partsOfSpeech: [partOfSpeech.adjective],
+      transcription: "/pəˈveɪ.sɪv/",
+      translation: ["повсеместный",
+                    "всепроникающий",
+                    "всеобъемлющий"
+      ],
+      meaning: ["existing in all parts of a place or thing; spreading gradually to affect all parts of a place or thing",
+            ],
+      examples: ["a pervasive smell of damp",
+                 "Her influence is all-pervasive (= it affects everyone and everything).",
+                 "the increasingly pervasive subculture in modern society",
+                ]
+    },
+
+    { word: "discrepancy",
+      partsOfSpeech: [partOfSpeech.noun],
+      transcription: "/dɪˈskrep.ən.si/",
+      translation: ["несоответствие",
+                    "расхождение",
+                    "противоречие",
+                    "различие",
+                    "разница",
+      ],
+      meaning: ["a difference between two or more things that should be the same",
+            ],
+      examples: ["There is a significant discrepancy between the number of graduates leaving higher education and the number of available jobs.",
+                 "Discrepancies in the firm's financial statements led to an investigation."
+                ]
+    },
   ]
 });
