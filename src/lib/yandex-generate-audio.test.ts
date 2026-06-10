@@ -2,8 +2,7 @@ import {describe, it, expect, vi, beforeEach, afterEach} from "vitest";
 import { generateEnglishAudioFile } from "./yandex-generate-audio";
 import {access, mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
 import {WordCard} from "@/generated/prisma/client";
-import {ENGLISH_US_LANG_CODE, YANDEX_BASE_URL} from "@/lib/consts";
-import path from "node:path";
+import {LANGUAGES, YANDEX_BASE_URL} from "@/lib/consts";
 
 
 // @ts-expect-error: mocked variable
@@ -26,7 +25,7 @@ describe("generateEnglishAudioFile", () => {
 
     it("shouldThrowWhenNoYandexApiKeyProvided", async () => {
         expect(async ()=>{
-            await generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, "");
+            await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "");
         }).rejects.toThrow(/YANDEX_API_KEY/);
     });
 
@@ -34,7 +33,7 @@ describe("generateEnglishAudioFile", () => {
     it("shouldSkipGenerationIfFileExists", async () => {
         await writeFile(`${tempDir}/${mockCard.word}.ogg`, "dummy audio content"); // создаем фейковый файл
         const fetchSpy = vi.spyOn(globalThis, "fetch");
-        await generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, "123");
+        await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123");
 
         expect(fetchSpy).not.toHaveBeenCalled();
     });
@@ -47,7 +46,7 @@ describe("generateEnglishAudioFile", () => {
         } as Response);
 
         await expect(async ()=>{
-            await generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, "123")
+            await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
         }).rejects.toThrow("Yandex API Error (500)");
     });
 
@@ -62,7 +61,7 @@ describe("generateEnglishAudioFile", () => {
                 }
             })
         } as unknown as Response);
-        await generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, "123")
+        await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
         const fileData = await readFile(tempDir + "/" + mockCard.word + ".ogg", "utf-8");
         expect(fileData).toBe("fake audio data");
     })
@@ -82,7 +81,7 @@ describe("generateEnglishAudioFile", () => {
             }   
         } as unknown as Response);
         await expect(
-            generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, "123")
+            generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
         ).rejects.toThrow()
         const err = await access(tempDir + "/" + mockCard.word + ".ogg").then(() => null).catch(e => e);
         expect(err?.code).toBe('ENOENT');
@@ -98,7 +97,7 @@ describe("generateEnglishAudioFile", () => {
         } as unknown as Response);
 
         const testApiKey = "test-key-123";
-        await generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, testApiKey);
+        await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, testApiKey);
 
         const [url, options] = fetchSpy.mock.calls[0];
         expect(url).toBe(YANDEX_BASE_URL);
@@ -110,7 +109,7 @@ describe("generateEnglishAudioFile", () => {
 
         const bodyParams = options?.body as URLSearchParams;
         expect(bodyParams.get("text")).toBe(mockCard.word);
-        expect(bodyParams.get("lang")).toBe(ENGLISH_US_LANG_CODE);
+        expect(bodyParams.get("lang")).toBe(LANGUAGES.ENGLISH_US_LANG_CODE);
         expect(bodyParams.get("format")).toBe("oggopus");
         expect(bodyParams.get("voice")).toBe("john");
     })
@@ -123,7 +122,7 @@ describe("generateEnglishAudioFile", () => {
         } as unknown as Response);
 
         await expect(async ()=>{
-            await generateEnglishAudioFile(mockCard, ENGLISH_US_LANG_CODE, tempDir, "123")
+            await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
         }).rejects.toThrow("Пустой ответ от сервера Яндекса");
     })
     
