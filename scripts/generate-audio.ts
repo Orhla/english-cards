@@ -2,7 +2,7 @@ import "dotenv/config";
 import { getAllEnglishCards } from "@/actions/actions";
 import { mkdir } from "fs/promises";
 import { asyncPool, withRetry } from "@/lib/utils";
-import { AUDIO_DIR, YANDEX_API_KEY } from "@/lib/consts";
+import { AUDIO_DIR, LANGUAGES, YANDEX_API_KEY } from "@/lib/consts";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
 
 const POOL_LIMIT = 5;
@@ -19,7 +19,7 @@ async function getEnglishAudioFiles() {
     }
 
     await mkdir(AUDIO_DIR, { recursive: true });
-    await asyncPool(allCards.data, POOL_LIMIT, (item) => withRetry(() => generateEnglishAudioFile(item)));
+    await asyncPool(allCards.data, POOL_LIMIT, (item) => withRetry(() => generateEnglishAudioFile(item, LANGUAGES.ENGLISH_US_LANG_CODE)));
 }
 
 try {
