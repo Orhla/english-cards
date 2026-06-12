@@ -1,4 +1,4 @@
-export const YANDEX_API_KEY = process.env.YANDEX_API_KEY; 
+export const YANDEX_API_KEY = process.env.YANDEX_API_KEY ?? "";
 export const YANDEX_BASE_URL = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize";
 export const AUDIO_DIR = "./public/audio";
 

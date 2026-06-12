@@ -25,7 +25,7 @@ export default function CardViewer({cards, mode}: Props) {
         setCurrentCardIndex((currentCardIndex + 1) % cards.length);
     };
 
-    if (!cards || cards.length === 0) {
+    if (cards.length === 0) {
       return (
         <ErrorMessage message="Список карточек пуст" />
       )
@@ -42,6 +42,6 @@ export default function CardViewer({cards, mode}: Props) {
                         key={card.id} />
           <ArrowButton direction="right"
                       onClick={handleNext} />
-        </div>      
+        </div>
   );
 }

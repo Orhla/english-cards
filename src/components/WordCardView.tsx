@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { WordCard } from "@/generated/prisma/browser";
 import { Mode, modeConfig } from "@/lib/types";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
@@ -19,9 +19,7 @@ enum CardStatus {
 
 export default function WordCardView({card, mode}: Props) {
 
-    const [isFlipped, setIsFlipped] = useState<boolean>(false);
-    const [checkStatus, setCheckStatus] = useState<CardStatus>(CardStatus.idle);
-    const [recognizedText, setRecognizedText] = useState<string>("");
+    const [isManuallyFlipped, setIsManuallyFlipped] = useState<boolean>(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const {
@@ -38,27 +36,27 @@ export default function WordCardView({card, mode}: Props) {
             SpeechRecognition.stopListening();
             resetTranscript();
         };
-    }, []);
+    }, [resetTranscript]);
 
+    const isRecordingFinished = !listening && !!transcript;
 
-    useEffect(() => {
-        if (!listening && transcript) {
-            setRecognizedText(transcript.toLowerCase().trim());
-            setIsFlipped(true);
+    const checkStatus = useMemo((): CardStatus => {
+        if (!isRecordingFinished) return CardStatus.idle;
 
-            if (mode === Mode.translation) {
-                const isInTranslation = card.translation.some(
+        if (mode === Mode.translation) {
+            const isInTranslation = card.translation.some(
                 (word) => word.toLowerCase().trim() === transcript.toLowerCase().trim()
-                );
-                setCheckStatus(isInTranslation ? CardStatus.success : CardStatus.error);
-            }
+            );
+            return isInTranslation ? CardStatus.success : CardStatus.error;
+        }
 
-            if (mode === Mode.pronunciation) {
-                const isSameWord = (card.word.toLowerCase().trim() === transcript.toLowerCase().trim())
-                setCheckStatus(isSameWord ? CardStatus.success : CardStatus.error);
-            }
-            }
-        }, [listening]);
+        if (mode === Mode.pronunciation) {
+            const isSameWord = card.word.toLowerCase().trim() === transcript.toLowerCase().trim();
+            return isSameWord ? CardStatus.success : CardStatus.error;
+        }
+
+        return CardStatus.idle;
+    }, [isRecordingFinished, card, mode, transcript]);
 
 
     const toggleMic = (e: React.MouseEvent) => {
@@ -82,8 +80,6 @@ export default function WordCardView({card, mode}: Props) {
         SpeechRecognition.stopListening();
       } else {
         resetTranscript();
-        setRecognizedText("");
-        setCheckStatus(CardStatus.idle);
         if (mode === Mode.translation) {
           SpeechRecognition.startListening({ language: LANGUAGES.RUSSIAN_RU_LANG_CODE });
         }
@@ -102,21 +98,21 @@ export default function WordCardView({card, mode}: Props) {
                         {modeConfig[mode].listening}
                     </div>
                     )}
-                    
+
                     {checkStatus === CardStatus.success && (
                     <div className="text-sm flex flex-col items-center bg-green-50 border border-green-200 px-4 py-1.5 rounded-xl text-center">
                         <span className="font-bold text-green-700">Правильно! 🎉</span>
-                        <span className="text-xs text-green-600 italic">Вы сказали: «{recognizedText}»</span>
+                        <span className="text-xs text-green-600 italic">Вы сказали: «{transcript}»</span>
                     </div>
                     )}
-        
+
                     {checkStatus === CardStatus.error && (
                     <div className="text-sm flex flex-col items-center bg-red-50 border border-red-200 px-4 py-1.5 rounded-xl text-center">
                         <span className="font-bold text-red-700">Неправильно ❌</span>
-                        <span className="text-xs text-red-600 italic">Вы сказали: «{recognizedText || "не удалось распознать"}»</span>
+                        <span className="text-xs text-red-600 italic">Вы сказали: «{transcript || "не удалось распознать"}»</span>
                     </div>
                     )}
-                    
+
                     {checkStatus === CardStatus.idle && (
                     <div className="text-xs text-gray-400 font-medium italic">
                         {modeConfig[mode].idle}
@@ -127,11 +123,12 @@ export default function WordCardView({card, mode}: Props) {
         <div
             className="w-full max-w-[450px] h-[320px] [perspective:1000px] cursor-pointer"
             onClick={() => {
-              setIsFlipped(!isFlipped)
-              setCheckStatus(CardStatus.idle)}}>
-            <div key={card.id}
+              setIsManuallyFlipped(!isManuallyFlipped);
+              resetTranscript();
+            }}>
+            <div
                 className={`relative w-full h-full transform-3d transition-transform duration-700 
-                ${isFlipped ? 'transform-[rotateY(180deg)]' : ''}`}>
+                ${isManuallyFlipped ? 'transform-[rotateY(180deg)]' : ''}`}>
 
                 {/* ЛИЦЕВАЯ СТОРОНА */}
                 <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col justify-between p-6">
@@ -153,7 +150,7 @@ export default function WordCardView({card, mode}: Props) {
                 {/* Низ: Подсказка */}
                 <div className="flex flex-col items-center gap-2">
                     <div className="flex flex-row items-center gap-3">
-                    <button 
+                    <button
                         onClick={(e) => {
                         e.stopPropagation();
                         if (audioRef.current) {
@@ -165,36 +162,36 @@ export default function WordCardView({card, mode}: Props) {
                         className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors"
                         title="Прослушать произношение"
                     >
-                        <svg 
-                        xmlns="http://w3.org" 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        strokeWidth={2} 
-                        stroke="currentColor" 
+                        <svg
+                        xmlns="http://w3.org"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={2}
+                        stroke="currentColor"
                         className="w-5 h-5"
                         >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
                         </svg>
                     </button>
 
-                    <button 
+                    <button
                         onClick={toggleMic}
                         className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-red-500 transition-colors"
                         title="Записать свой перевод"
                         >
-                        <svg 
-                            xmlns="http://w3.org" 
-                            fill="none" 
-                            viewBox="0 0 24 24" 
-                            strokeWidth={2} 
-                            stroke="currentColor" 
+                        <svg
+                            xmlns="http://w3.org"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={2}
+                            stroke="currentColor"
                             className="w-5 h-5"
                         >
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
                         </svg>
                     </button>
                     </div>
-                    
+
                     <p className="text-center text-xs text-gray-400 font-medium">Нажмите, чтобы перевернуть</p>
                 </div>
                 </div>
