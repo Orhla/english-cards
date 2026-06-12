@@ -67,22 +67,16 @@ describe("generateEnglishAudioFile", () => {
     })
 
     it('shouldDeleteCorruptedFile', async () => {
-
-        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
         vi.spyOn(globalThis, "fetch").mockResolvedValue({
             ok: true,
             status: 200,
-            body: { 
-                pipeTo: vi.fn().mockImplementation(async () => {
-                    await sleep(20); 
-                    throw new Error("disk full");
-                })
-            }   
+            body: {
+                pipeTo: vi.fn().mockRejectedValue(new Error("disk full"))
+            }
         } as unknown as Response);
         await expect(
-            generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
-        ).rejects.toThrow()
+             ()=> generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
+        ).rejects.toThrow("disk full")
         const err = await access(tempDir + "/" + mockCard.word + ".ogg").then(() => null).catch(e => e);
         expect(err?.code).toBe('ENOENT');
     })
@@ -91,14 +85,15 @@ describe("generateEnglishAudioFile", () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
             ok: true,
             status: 200,
-            body: { 
-                pipeTo: vi.fn().mockResolvedValue("")                
-            }   
+            body: {
+                pipeTo: vi.fn().mockResolvedValue("")
+            }
         } as unknown as Response);
 
         const testApiKey = "test-key-123";
         await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, testApiKey);
 
+        expect(fetchSpy).toHaveBeenCalledTimes(1)
         const [url, options] = fetchSpy.mock.calls[0];
         expect(url).toBe(YANDEX_BASE_URL);
         expect(options?.method).toBe("POST");
@@ -125,5 +120,5 @@ describe("generateEnglishAudioFile", () => {
             await generateEnglishAudioFile(mockCard, LANGUAGES.ENGLISH_US_LANG_CODE, tempDir, "123")
         }).rejects.toThrow("Пустой ответ от сервера Яндекса");
     })
-    
+
 });

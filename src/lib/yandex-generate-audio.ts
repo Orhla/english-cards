@@ -1,9 +1,8 @@
 import { createWriteStream } from "fs";
 import { AUDIO_DIR, YANDEX_API_KEY, YANDEX_BASE_URL } from "@/lib/consts";
 import { Writable } from "stream";
-import { unlink } from "fs/promises";
+import { access, open, unlink } from "fs/promises";
 import { WordCard } from "@/generated/prisma/browser";
-import { access } from 'fs/promises';
 
 export async function generateEnglishAudioFile(card: WordCard, langCode: string, audioDir: string = AUDIO_DIR, yandexApiKey: string = YANDEX_API_KEY) {
     if (!yandexApiKey) {
@@ -45,16 +44,14 @@ export async function generateEnglishAudioFile(card: WordCard, langCode: string,
         throw new Error("Пустой ответ от сервера Яндекса");
     }
 
-    const fileStream = createWriteStream(audioPath);
+    const fileHandle = await open(audioPath, "w");
+    const fileStream = fileHandle.createWriteStream();
     try {
         await response.body.pipeTo(Writable.toWeb(fileStream));
     } catch (error) {
         fileStream.destroy();
-        try {
-            await unlink(audioPath);
-        } catch (unlinkError) {
-            throw new Error(`Не удалось удалить файл: ${audioPath}\nОшибка: ${unlinkError}`);
-        }
-        throw new Error(`Ошибка генерации аудиофайла ${audioPath}\nОшибка: ${error}`)
+        await fileHandle.close()
+        await unlink(audioPath);
+        throw error;
     }
 }
