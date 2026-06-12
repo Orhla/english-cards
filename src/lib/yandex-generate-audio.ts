@@ -49,6 +49,7 @@ export async function generateEnglishAudioFile(card: WordCard, langCode: string,
     try {
         await response.body.pipeTo(Writable.toWeb(fileStream));
     } catch (error) {
+        console.error("Ошибка при сохранении аудио файла:", error);
         fileStream.destroy();
         await fileHandle.close()
         await unlink(audioPath);
