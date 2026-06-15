@@ -23,6 +23,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         },
 
         async session({ session, token }) {
+            console.warn("sessuion.session", session)
+            console.warn("sessuion.token", token)
             return {
                 ...session,
                 user: {
