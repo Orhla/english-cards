@@ -7,7 +7,7 @@ export default async function AdminLayout({children,}: Readonly<{children: React
         redirect('/login')
     }
     return (
-        <div className="flex-1 w-full max-w-[650px] mx-auto px-4 py-6 flex flex-col min-h-0">
+        <div className="flex-1 w-full max-w-none px-4 py-6 flex flex-col min-h-0">
             {children}
         </div>
     );
