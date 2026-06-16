@@ -1,6 +1,6 @@
-import { signIn } from "@/../auth"
+import { signIn } from "@/auth"
 
-export default function LoginPage() {
+export default async function LoginPage() {
     return (
         <div className="flex h-screen items-center justify-center bg-gray-50 px-4">
             <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-md">
