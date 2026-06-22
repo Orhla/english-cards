@@ -2,6 +2,18 @@ import { getAllEnglishCards } from '@/actions/actions';
 import DeleteCardButton from '@/components/DeleteCardButton';
 import ErrorMessage from '@/components/ErrorMessage';
 import Link from 'next/link';
+import { Plus, Edit2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default async function WordCardsPage() {
   const allCards = await getAllEnglishCards();
@@ -18,70 +30,87 @@ export default async function WordCardsPage() {
   }
 
   return (
-    <div className="w-full p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Управление карточками слов</h1>
-        <Link
-          href="/admin/cards/new"
-          className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors"
-        >
-          <svg xmlns="http://w3.org" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 mr-2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Создать карточку
-        </Link>
+    <div className="w-full p-6 space-y-6">
+      {/* Шапка страницы */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Управление карточками слов
+          </h1>
+        </div>
+        <Button className="gap-2" asChild>
+          <Link href="/admin/cards/new">
+            <Plus className="h-4 w-4" />
+            Создать карточку
+          </Link>
+        </Button>
       </div>
       
-      <div className="w-full max-w-none overflow-x-auto border rounded-lg shadow-sm bg-white">
-        <table className="w-full table-auto divide-y divide-gray-200 text-left text-sm whitespace-nowrap">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="p-4 font-semibold text-gray-700 w-16">ID</th>
-              <th className="p-4 font-semibold text-gray-700 ">Слово</th>
-              <th className="p-4 font-semibold text-gray-700 min-w-[100px]">Транскрипция</th>
-              <th className="p-4 font-semibold text-gray-700 min-w-[200px]">Перевод</th>
-              <th className="p-4 font-semibold text-gray-700 min-w-[300px]">Значение</th>
-              <th className="p-4 font-semibold text-gray-700 min-w-[350px]">Примеры</th>
-              <th className="p-4 font-semibold text-gray-700 min-w-[130px]">Части речи</th>
-              <th className="p-4 font-semibold text-gray-700 sticky right-0 bg-gray-50 border-l shadow-[-2px_0_5px_rgba(0,0,0,0.05)] text-center w-32">
+      {/* Область таблицы shadcn/ui */}
+      <div className="rounded-md border bg-card shadow-sm">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-16">ID</TableHead>
+              <TableHead>Слово</TableHead>
+              <TableHead className="min-w-[100px]">Транскрипция</TableHead>
+              <TableHead className="min-w-[200px]">Перевод</TableHead>
+              <TableHead className="min-w-[300px]">Значение</TableHead>
+              <TableHead className="min-w-[350px]">Примеры</TableHead>
+              <TableHead className="min-w-[130px]">Часть речи</TableHead>
+              <TableHead className="sticky right-0 bg-background border-l text-center w-32 shadow-[-2px_0_5px_rgba(0,0,0,0.02)]">
                 Действия
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          
+          <TableBody>
             {cards.map((card) => (
-              <tr key={card.id} className="hover:bg-gray-50">
-                <td className="p-3 text-gray-500">{card.id}</td>
-                <td className="p-3 font-bold text-gray-900">{card.word}</td>
-                <td className="p-3 text-gray-600 font-mono">{card.transcription}</td>
-                <td className="p-4 text-gray-700 max-w-xs whitespace-normal hover:whitespace-normal">
-                  {card.translation?.join('| ') || ''}
-                </td>
-                <td className="p-4 text-gray-600 max-w-sm whitespace-normal hover:whitespace-normal">
-                  {card.meaning?.join('| ') || ''}
-                </td>
-                <td className="p-4 text-gray-600 max-w-md whitespace-normal hover:whitespace-normal">
-                  {card.examples?.join(' | ') || ''}
-                </td>
-                <td className="p-4 text-gray-600 max-w-sm whitespace-normal hover:whitespace-normal">
-                  {card.partsOfSpeech?.join('| ') || ''}
-                </td>
-                <td className="p-4 sticky right-0 bg-white group-hover:bg-gray-50 border-l shadow-[-2px_0_5px_rgba(0,0,0,0.05)] text-center transition-colors">
+              <TableRow key={card.id}>
+                <TableCell className="text-muted-foreground">{card.id}</TableCell>
+                <TableCell className="font-bold text-foreground text-base">
+                  {card.word}
+                </TableCell>
+                <TableCell className="font-mono text-muted-foreground">
+                  {card.transcription}
+                </TableCell>
+                <TableCell className="max-w-xs whitespace-normal leading-relaxed">
+                  {card.translation?.join(', ') || ''}
+                </TableCell>
+                <TableCell className="max-w-sm whitespace-normal text-muted-foreground leading-relaxed">
+                  {card.meaning?.map((m, i) => (
+                    <div key={i} className="mb-1 last:mb-0">• {m}</div>
+                  )) || ''}
+                </TableCell>
+                <TableCell className="max-w-md whitespace-normal text-muted-foreground/90 italic leading-relaxed">
+                  {card.examples?.map((ex, i) => (
+                    <div key={i} className="mb-1 last:mb-0">«{ex}»</div>
+                  )) || ''}
+                </TableCell>
+                <TableCell className="max-w-sm whitespace-normal">
+                  <div className="flex flex-wrap gap-1.5">
+                    {card.partsOfSpeech?.map((pos) => (
+                      <Badge key={pos} variant="secondary" className="capitalize font-normal text-xs">
+                        {pos}
+                      </Badge>
+                    )) || ''}
+                  </div>
+                </TableCell>
+                <TableCell className="sticky right-0 bg-background border-l text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)]">
                   <div className="flex items-center justify-center gap-2">
-                    <Link
-                      href={`/admin/cards/${card.id}?mode=edit`}
-                      className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1.5 px-3 rounded transition"
-                    >
-                      Редактировать
-                    </Link>
-                    
+                    <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                      <Link href={`/admin/cards/${card.id}?mode=edit`}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                        Редактировать
+                      </Link>
+                    </Button>                    
                     <DeleteCardButton cardId={card.id} />
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

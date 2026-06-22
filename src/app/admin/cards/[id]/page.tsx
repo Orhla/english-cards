@@ -1,6 +1,6 @@
 import ErrorMessage from "@/components/ErrorMessage";
 import { prisma } from "@/lib/prisma";
-import AdminWordCardClient from "./AdminWordCardClient";
+import AdminCardForm from "@/components/AdminCardForm";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -22,5 +22,6 @@ export default async function WordCardsPage({ params }: Props) {
         return <ErrorMessage message="Карточка не найдена" />;
     }
 
-    return <AdminWordCardClient card={card} />;
+    return <AdminCardForm card={card}
+                          mode="edit" />;
 }
