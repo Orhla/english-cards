@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { WordCard } from "@/generated/prisma/browser";
+import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 
 type ActionGetCardsStatus =
@@ -19,6 +19,40 @@ export async function getAllEnglishCards(): Promise<ActionGetCardsStatus> {
     }
 }
 
+export async function wordCardFormAction(prevState: unknown, formData: FormData): Promise<{ error?: string } | null> {
+    const id = formData.get("id")?.toString();
+    const word = formData.get("word")?.toString().trim() ?? "";
+    const transcription = formData.get("transcription")?.toString().trim() ?? "";
+    const translation = formData.getAll("translation").map(String).filter(Boolean);
+    const meaning = formData.getAll("meaning").map(String).filter(Boolean);
+    const examples = formData.getAll("example").map(String).filter(Boolean);
+    const partsOfSpeech = formData.getAll("partsOfSpeech").map(String) as partOfSpeech[];
+
+    const audioFile = formData.get("audio") as File | null;
+    if (audioFile && audioFile.size > 0) {
+        console.log("audio file:", audioFile.name, "size:", audioFile.size, "bytes");
+    } else {
+        console.log("audio file: not provided");
+    }
+
+    try {
+        if (id) {
+            await prisma.wordCard.update({
+                where: { id: Number(id) },
+                data: { word, transcription, translation, meaning, examples, partsOfSpeech },
+            });
+        } else {
+            await prisma.wordCard.create({
+                data: { word, transcription, translation, meaning, examples, partsOfSpeech },
+            });
+        }
+    } catch (error) {
+        return { error: error instanceof Error ? error.message : "Не удалось сохранить карточку" };
+    }
+
+    redirect("/admin/cards");
+}
+
 
 export async function updateWordCard(card: WordCard) {
   try {
@@ -33,7 +67,7 @@ export async function updateWordCard(card: WordCard) {
         examples: card.examples,
       },
     });
-    
+
     return { success: true };
   } catch (error) {
         console.error("Ошибка при обновлении карточки:", error);
@@ -47,7 +81,7 @@ export async function deleteWordCard(cardId: number) {
     await prisma.wordCard.delete({
       where: { id: cardId },
     });
-    
+
     return { success: true };
   } catch (error) {
         console.error("Ошибка при удалении карточки:", error);

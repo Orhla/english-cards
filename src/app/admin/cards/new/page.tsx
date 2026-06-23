@@ -1,5 +1,5 @@
-import CardCreator from "@/components/CardCreator";
+import AdminCardForm from "@/components/AdminCardForm";
 
 export default async function NewWordCard() {
-    return <CardCreator />
+    return <AdminCardForm mode="create" />
 }

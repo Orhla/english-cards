@@ -3,6 +3,20 @@
 import { deleteWordCard } from '@/actions/actions';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Loader2, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type Props = {
   cardId: number;
@@ -10,11 +24,11 @@ type Props = {
 
 export default function DeleteCardButton({ cardId }: Props) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   const router = useRouter();
 
   const handleDelete = async () => {
-    if (!confirm('Вы уверены, что хотите удалить эту карточку?')) return;
-
+    
     setIsLoading(true);
 
     try {
@@ -34,12 +48,44 @@ export default function DeleteCardButton({ cardId }: Props) {
   };
 
   return (
-    <button
-      onClick={handleDelete}
-      disabled={isLoading}
-      className="bg-red-600 hover:bg-red-700 text-white text-xs font-medium py-1.5 px-3 rounded transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[70px]"
-    >
-      {isLoading ? '...' : 'Удалить'}
-    </button>
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      <AlertDialogTrigger asChild>
+        <Button 
+          variant="destructive" 
+          disabled={isLoading}
+          className="min-w-[110px] gap-2"
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>
+              <Trash2 className="h-4 w-4" />
+              Удалить
+            </>
+          )}
+        </Button>
+      </AlertDialogTrigger>
+
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Это действие нельзя отменить. Карточка будет навсегда удалена из базы данных.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Отмена</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={(e) => {
+              e.preventDefault();
+              handleDelete();
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Удалить
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
