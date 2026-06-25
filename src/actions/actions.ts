@@ -3,6 +3,9 @@
 import { prisma } from "@/lib/prisma"
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
+import { requireAdmin, requireLogin } from "@/lib/dal";
+import { revalidatePath } from "next/cache";
+import { ERRORS_PER_NEW } from "@/lib/consts";
 
 type ActionGetCardsStatus =
     | { success: true, data: WordCard[] }
@@ -20,6 +23,7 @@ export async function getAllEnglishCards(): Promise<ActionGetCardsStatus> {
 }
 
 export async function wordCardFormAction(prevState: unknown, formData: FormData): Promise<{ error?: string } | null> {
+    await requireAdmin();
     const id = formData.get("id")?.toString();
     const word = formData.get("word")?.toString().trim() ?? "";
     const transcription = formData.get("transcription")?.toString().trim() ?? "";
@@ -55,6 +59,7 @@ export async function wordCardFormAction(prevState: unknown, formData: FormData)
 
 
 export async function updateWordCard(card: WordCard) {
+  await requireAdmin();
   try {
     await prisma.wordCard.update({
       where: { id: card.id },
@@ -71,12 +76,13 @@ export async function updateWordCard(card: WordCard) {
     return { success: true };
   } catch (error) {
         console.error("Ошибка при обновлении карточки:", error);
-        return { success: false, error: `Не удалось сохранить изменения: ${error}` };
+        return { success: false, error: `Не удалось сохранить изменения: ${error instanceof Error ? error.message : error}` };
   }
 }
 
 
 export async function deleteWordCard(cardId: number) {
+  await requireAdmin();
   try {
     await prisma.wordCard.delete({
       where: { id: cardId },
@@ -85,12 +91,13 @@ export async function deleteWordCard(cardId: number) {
     return { success: true };
   } catch (error) {
         console.error("Ошибка при удалении карточки:", error);
-        return { success: false, error: `Не удалось удалить карточку: ${error}` };
+        return { success: false, error: `Не удалось удалить карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
 
 
 export async function createWordCard(card: Omit<WordCard, 'id'>) {
+  await requireAdmin();
   let isSuccess = false;
   try {
     await prisma.wordCard.create({
@@ -106,10 +113,135 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
     isSuccess = true;
   } catch (error) {
         console.error("Ошибка при создании карточки:", error);
-        return { success: false, error: `Не удалось создать карточку: ${error}` };
+        return { success: false, error: `Не удалось создать карточку: ${error instanceof Error ? error.message : error}` };
   }
 
   if (isSuccess) {
     redirect('/admin/cards');
   }
+}
+
+
+export async function likeCard(cardId: number) {
+  const session = await requireLogin();
+  const userId = session.user.id;
+  try {
+    await prisma.userCardInteraction.upsert({
+        where: { userId_cardId: { userId, cardId } },
+        create: { userId, cardId, liked: true },
+        update: { liked: true, ignored: false },
+    });
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+      console.error("Ошибка при лайке карточки:", error);
+      return { success: false, error: `Не удалось лайкнуть карточку: ${error instanceof Error ? error.message : error}` };
+  }
+}
+
+
+export async function ignoreCard(cardId: number) {
+  const session = await requireLogin();
+  const userId = session.user.id;
+  try {
+    await prisma.userCardInteraction.upsert({
+        where: { userId_cardId: { userId, cardId } },
+        create: { userId, cardId, ignored: true },
+        update: { liked: false, ignored: true },
+    });
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+      console.error("Ошибка при добавлении карточки в игнор:", error);
+      return { success: false, error: `Не удалось добавить карточку в игнор: ${error instanceof Error ? error.message : error}` };
+  }
+}
+
+
+export async function recordAnswer(cardId: number, isCorrect: boolean) {
+  const session = await requireLogin();
+  const userId = session.user.id;
+  try {
+    await prisma.userCardInteraction.upsert({
+        where: { userId_cardId: { userId, cardId } },
+        create: { userId,
+                  cardId, 
+                  correctCount: isCorrect ? 1 : 0,
+                  incorrectCount: isCorrect ? 0 : 1},
+        update: { correctCount: isCorrect ? {increment: 1} : {increment: 0},
+                  incorrectCount: isCorrect ? {increment: 0} : {increment: 1},
+                  lastSeenAt: new Date() },
+    });
+    return { success: true };
+  } catch (error) {
+      console.error("Ошибка при обновлении статистики правильных ответов:", error);
+      return { success: false, error: `Ошибка при обновлении статистики правильных ответов: ${error instanceof Error ? error.message : error}` };
+  }
+}
+
+
+export async function getCardsForPractice(userId: string): Promise<ActionGetCardsStatus> {
+  try {
+    // cards with user errors
+    
+    const errorInteractions = await prisma.userCardInteraction.findMany({
+      where: { userId, incorrectCount: { gt: 0 }, ignored: false },
+      orderBy: [{ liked: 'desc' }, { incorrectCount: 'desc' }, { lastSeenAt: 'asc' }],
+      include: { card: true },
+    })
+
+    const errorCards = errorInteractions.map(interaction => interaction.card);
+
+    // cards not seen by user
+    const seenCardIds = await prisma.userCardInteraction.findMany({
+        where: { userId },
+        select: { cardId: true },
+    })
+
+    const newCards = await prisma.wordCard.findMany({
+        where: { id: { notIn: seenCardIds.map(r => r.cardId) } },
+        orderBy: { id: 'asc' },
+    })
+
+    const result = [];
+    const arrErrorCards = [...errorCards];
+    const arrNewCards = [...newCards];
+    let errorIndex = 0;
+    let newIndex = 0;
+
+    while (arrErrorCards.length > errorIndex || arrNewCards.length > newIndex) {
+        const remainingErrors = arrErrorCards.length - errorIndex;
+        const remainingNews = arrNewCards.length - newIndex;
+
+        if (remainingErrors === 0 && remainingNews === 0) {
+           break;
+        }
+
+        if (remainingErrors > 0 && remainingNews === 0) {
+            result.push(...arrErrorCards.slice(errorIndex));
+            break;
+        }
+
+        if (remainingNews > 0 && remainingErrors === 0) {
+            result.push(...arrNewCards.slice(newIndex));
+            break;
+        }
+
+        const errorLimit = Math.min(remainingErrors, ERRORS_PER_NEW[0]);
+        for (let i = 0; i < errorLimit; i++) {
+            result.push(arrErrorCards[errorIndex]);
+            errorIndex++;
+        }
+
+        const newLimit = Math.min(remainingNews, ERRORS_PER_NEW[1]);
+        for (let i = 0; i < newLimit; i++) {
+            result.push(arrNewCards[newIndex]);
+            newIndex++;
+        }
+    }
+    return {success: true, data: result};
+  } catch (error) {
+    return {success: false, message: error instanceof Error ? error.message : "Не удалось загрузить карточки. Попробуйте позже."};
+  }
+
 }

@@ -29,6 +29,8 @@ model WordCard {
   translation   String[]
   meaning       String[]
   examples      String[]
+
+  interactions UserCardInteraction[]
 }
 
 enum partOfSpeech {
@@ -56,6 +58,8 @@ model User {
  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  interactions UserCardInteraction[]
 }
 
 
@@ -114,4 +118,21 @@ model Authenticator {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
  
   @@id([userId, credentialID])
+}
+
+
+model UserCardInteraction {
+  id             Int      @id @default(autoincrement())
+  userId         String
+  cardId         Int
+  liked          Boolean  @default(false)
+  ignored        Boolean  @default(false)
+  correctCount   Int      @default(0)
+  incorrectCount Int      @default(0)
+  lastSeenAt     DateTime @default(now())
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card WordCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
 }

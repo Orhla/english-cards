@@ -1,10 +1,15 @@
 import CardViewer from "@/components/CardViewer";
-import { getAllEnglishCards } from "@/actions/actions";
+import { getAllEnglishCards, getCardsForPractice } from "@/actions/actions";
 import ErrorMessage from "@/components/ErrorMessage";
 import { Mode } from "@/lib/types";
+import { auth } from "@/auth";
 
 export default async function EnglishCards() {
-  const allCards = await getAllEnglishCards();
+  const session = await auth()
+  
+  const allCards = session?.user?.id
+    ? await getCardsForPractice(session.user.id)
+    : await getAllEnglishCards()
   if (!allCards.success) {
     return (
       <ErrorMessage message={allCards.message} />

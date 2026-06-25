@@ -6,3 +6,5 @@ export enum LANGUAGES {
     ENGLISH_US_LANG_CODE = "en-US",
     RUSSIAN_RU_LANG_CODE = "ru-RU",
 }
+
+export const ERRORS_PER_NEW = [2, 1];
