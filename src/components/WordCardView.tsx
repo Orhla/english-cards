@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useTransition } from "react";
 import { WordCard } from "@/generated/prisma/browser";
 import { Mode, modeConfig } from "@/lib/types";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { LANGUAGES } from "@/lib/consts";
+import { EyeOff, Heart } from "lucide-react";
+import { ignoreCard, likeCard, recordAnswer } from "@/actions/actions";
 
 type Props = {
     card: WordCard,
-    mode: Mode
+    mode: Mode,
+    interaction?: { liked: boolean; ignored: boolean } | null
 }
 
 enum CardStatus {
@@ -17,10 +20,13 @@ enum CardStatus {
   error = 'error'
 }
 
-export default function WordCardView({card, mode}: Props) {
+export default function WordCardView({card, mode, interaction}: Props) {
 
     const [isManuallyFlipped, setIsManuallyFlipped] = useState<boolean>(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [isPending, startTransition] = useTransition()
+    const isLiked = interaction?.liked ?? false;
+    const isIgnored = interaction?.ignored ?? false;
 
     const {
         transcript,
@@ -37,6 +43,18 @@ export default function WordCardView({card, mode}: Props) {
             resetTranscript();
         };
     }, [resetTranscript]);
+
+    const handleLike = () => {
+        startTransition(async () => {
+            await likeCard(card.id);
+        })
+    }
+
+    const handleIgnore = () => {
+        startTransition(async () => {
+            await ignoreCard(card.id);
+        })
+    }
 
     const isRecordingFinished = !listening && !!transcript;
 
@@ -57,6 +75,21 @@ export default function WordCardView({card, mode}: Props) {
 
         return CardStatus.idle;
     }, [isRecordingFinished, card, mode, transcript]);
+
+
+    useEffect(() => {
+        if (!isRecordingFinished) return;
+
+        if (checkStatus === CardStatus.success) {
+            startTransition(async () => {
+                await recordAnswer(card.id, true);
+            });
+        } else if (checkStatus === CardStatus.error) {
+            startTransition(async () => {
+                await recordAnswer(card.id, false);
+            });
+    }
+    }, [checkStatus])
 
 
     const toggleMic = (e: React.MouseEvent) => {
@@ -133,12 +166,49 @@ export default function WordCardView({card, mode}: Props) {
                 {/* ЛИЦЕВАЯ СТОРОНА */}
                 <div className="absolute inset-0 w-full h-full [backface-visibility:hidden] [-webkit-backface-visibility:hidden] bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col justify-between p-6">
                 {/* Верхняя панель: Части речи */}
-                <div className="flex flex-wrap gap-1.5">
-                    {card.partsOfSpeech.map((pos) => (
-                    <span key={pos} className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md">
-                        {pos}
-                    </span>
-                    ))}
+                <div className="flex justify-between items-start gap-4">
+                    {/* Левая часть: Части речи */}
+                    <div className="flex flex-wrap gap-1.5">
+                        {card.partsOfSpeech.map((pos) => (
+                        <span key={pos} className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md">
+                            {pos}
+                        </span>
+                        ))}
+                    </div>
+
+                    {/* Правая часть: Иконки Лайка и Игнора */}
+                    <div className="flex items-center gap-2 text-gray-400">
+                    {/* Кнопка Игнорировать */}
+                        <button 
+                            disabled={isPending}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleIgnore();
+                            }}
+                            className={`p-1 rounded-full transition-colors ${
+                                        isIgnored 
+                                        ? "text-slate-700 bg-slate-100 hover:bg-slate-200" 
+                                        : "text-gray-400 hover:text-slate-600 hover:bg-slate-50"}`}
+                            title={isIgnored ? "Убрать из игнора" : "Игнорировать слово"}>
+                            <EyeOff className={`w-4 h-4 transition-transform ${isIgnored ? "stroke-[2.5] scale-105" : ""}`} />
+                        </button>
+
+                        {/* Кнопка Лайк */}
+                        <button 
+                            disabled={isPending}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleLike();
+                            }}
+                            className={`p-1 rounded-full transition-colors ${
+                                        isLiked 
+                                        ? "text-rose-500 bg-rose-50 hover:bg-rose-100" 
+                                        : "text-gray-400 hover:text-rose-500 hover:bg-rose-50"}`}
+                            title={isLiked ? "Убрать из избранного" : "В избранное"}>
+                            <Heart className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
+                        </button>
+                    </div>
+
                 </div>
 
                 {/* Центр: Слово и Транскрипция */}
