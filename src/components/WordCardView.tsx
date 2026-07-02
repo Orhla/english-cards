@@ -24,9 +24,14 @@ export default function WordCardView({card, mode, interaction}: Props) {
 
     const [isManuallyFlipped, setIsManuallyFlipped] = useState<boolean>(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const [isPending, startTransition] = useTransition()
-    const isLiked = interaction?.liked ?? false;
-    const isIgnored = interaction?.ignored ?? false;
+    const [isPending, startTransition] = useTransition();
+    const [isLiked, setIsLiked] = useState(interaction?.liked ?? false);
+    const [isIgnored, setIsIgnored] = useState(interaction?.ignored ?? false);
+
+    useEffect(() => {
+        setIsLiked(interaction?.liked ?? false);
+        setIsIgnored(interaction?.ignored ?? false);
+    }, [interaction]);
 
     const {
         transcript,
@@ -45,14 +50,18 @@ export default function WordCardView({card, mode, interaction}: Props) {
     }, [resetTranscript]);
 
     const handleLike = () => {
+        const nextLikeState = !isLiked;
+        setIsLiked(nextLikeState);
         startTransition(async () => {
-            await likeCard(card.id);
+            await likeCard(card.id, nextLikeState);
         })
     }
 
     const handleIgnore = () => {
+        const nextIgnoreState = !isIgnored;
+        setIsIgnored(nextIgnoreState);
         startTransition(async () => {
-            await ignoreCard(card.id);
+            await ignoreCard(card.id, nextIgnoreState);
         })
     }
 

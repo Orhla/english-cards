@@ -1,15 +1,14 @@
 "use client"
 
-import { WordCard } from "@/generated/prisma/browser";
 // вот тут есть плюсы и минусы. Плюсы - мы переиспользуем "призма модель" не надо делать промежуточные типы. Минусы - мы привязаны к призма модели. Любое изменение в модели дойдет до компонента.
 import { useState } from "react";
 import ArrowButton from "@/components/ArrowButton";
 import ErrorMessage from "@/components/ErrorMessage";
-import { Mode } from "@/lib/types";
-import WordCardView from "./WordCardView";
+import { Mode, WordCardWithInteractions } from "@/lib/types";
+import WordCardView from "@/components/WordCardView";
 
 type Props = {
-    cards: WordCard[],
+    cards: WordCardWithInteractions[],
     mode: Mode
 }
 
@@ -39,7 +38,8 @@ export default function CardViewer({cards, mode}: Props) {
                       onClick={handlePrev} />
           <WordCardView card={card}
                         mode={mode}
-                        key={card.id} />
+                        key={card.id}
+                        interaction={card.interactions && card.interactions.length > 0 ? card.interactions[0] : null} />
           <ArrowButton direction="right"
                       onClick={handleNext} />
         </div>
