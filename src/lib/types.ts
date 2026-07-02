@@ -1,3 +1,5 @@
+import { Prisma } from "@/generated/prisma/browser";
+
 export enum Mode {
   translation = 'translation',
   pronunciation = 'pronunciation'
@@ -13,3 +15,8 @@ export const modeConfig = {
         idle: "Нажмите на микрофон, чтобы проверить своё произношение на английском",
     },
 };
+
+
+export type WordCardWithInteractions = Prisma.WordCardGetPayload<{
+  include: { interactions: true }
+}>;

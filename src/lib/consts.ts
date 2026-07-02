@@ -7,4 +7,8 @@ export enum LANGUAGES {
     RUSSIAN_RU_LANG_CODE = "ru-RU",
 }
 
-export const ERRORS_PER_NEW = [2, 1];
+export const MIN_CARDS_NUMBER = 1;
+export const MAX_CARDS_NUMBER = 20;
+
+export const ERROR_CARDS_NUMBER = 2;
+export const NEW_CARDS_NUMBER = 1;
