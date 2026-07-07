@@ -5,15 +5,22 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ERRORS_PER_NEW } from "@/lib/consts";
+import { ERROR_CARDS_NUMBER, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
+import { WordCardWithInteractions } from "@/lib/types";
 
 type ActionGetCardsStatus =
-    | { success: true, data: WordCard[] }
+    | { success: true, data: WordCardWithInteractions[] }
     | { success: false, message: string }
 
-export async function getAllEnglishCards(): Promise<ActionGetCardsStatus> {
+export async function getAllEnglishCards(userId?: string): Promise<ActionGetCardsStatus> {
     try {
-        const allCards = await prisma.wordCard.findMany();
+        const allCards = await prisma.wordCard.findMany({
+          include: {
+            interactions: {
+              where: userId ? { userId } : { userId: "" }
+            }
+          }
+        });
         // момент в том, что сейчас все карточки выдаются в одном и том же формате. нам же надо какую-то рандомизацию. представь 20.000 карточек и нам нужно рандомно каждый раз выдавать.
         return {success: true, data: allCards};
     } catch (error) {
@@ -122,16 +129,16 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
 }
 
 
-export async function likeCard(cardId: number) {
+export async function likeCard(cardId: number, nextState?: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
         create: { userId, cardId, liked: true },
-        update: { liked: true, ignored: false },
+        update: { liked: nextState },
     });
-    revalidatePath("/");
+    revalidatePath("/practice");
     return { success: true };
   } catch (error) {
       console.error("Ошибка при лайке карточки:", error);
@@ -140,16 +147,16 @@ export async function likeCard(cardId: number) {
 }
 
 
-export async function ignoreCard(cardId: number) {
+export async function ignoreCard(cardId: number, nextState?: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
         create: { userId, cardId, ignored: true },
-        update: { liked: false, ignored: true },
+        update: { ignored: nextState },
     });
-    revalidatePath("/");
+    revalidatePath("/practice");
     return { success: true };
   } catch (error) {
       console.error("Ошибка при добавлении карточки в игнор:", error);
@@ -168,8 +175,7 @@ export async function recordAnswer(cardId: number, isCorrect: boolean) {
                   cardId, 
                   correctCount: isCorrect ? 1 : 0,
                   incorrectCount: isCorrect ? 0 : 1},
-        update: { correctCount: isCorrect ? {increment: 1} : {increment: 0},
-                  incorrectCount: isCorrect ? {increment: 0} : {increment: 1},
+        update: { [isCorrect ? 'correctCount' : 'incorrectCount']: { increment: 1 },
                   lastSeenAt: new Date() },
     });
     return { success: true };
@@ -180,27 +186,57 @@ export async function recordAnswer(cardId: number, isCorrect: boolean) {
 }
 
 
-export async function getCardsForPractice(userId: string): Promise<ActionGetCardsStatus> {
+export async function getCardsForPractice(userId: string, limit: number = 10): Promise<ActionGetCardsStatus> {
+  if (!Number.isInteger(limit)) {
+    limit = 10;
+  }
+
+  if (limit < MIN_CARDS_NUMBER) {
+    limit = MIN_CARDS_NUMBER;
+  }
+
+  if (limit > MAX_CARDS_NUMBER) {
+    limit = MAX_CARDS_NUMBER;
+  }
+
+  const errorCardsNumber = Math.round(limit / (ERROR_CARDS_NUMBER + NEW_CARDS_NUMBER) * ERROR_CARDS_NUMBER);
+  const newCardsNumber = limit - errorCardsNumber;
+
   try {
     // cards with user errors
     
     const errorInteractions = await prisma.userCardInteraction.findMany({
       where: { userId, incorrectCount: { gt: 0 }, ignored: false },
       orderBy: [{ liked: 'desc' }, { incorrectCount: 'desc' }, { lastSeenAt: 'asc' }],
-      include: { card: true },
+      include: {
+        card: {
+          include: {
+            interactions: {
+              where: { userId } 
+            }
+          }
+        }
+      },
+      take: errorCardsNumber,
     })
 
     const errorCards = errorInteractions.map(interaction => interaction.card);
 
-    // cards not seen by user
-    const seenCardIds = await prisma.userCardInteraction.findMany({
-        where: { userId },
-        select: { cardId: true },
-    })
-
     const newCards = await prisma.wordCard.findMany({
-        where: { id: { notIn: seenCardIds.map(r => r.cardId) } },
+        where: {
+          interactions: {
+            none: {
+              userId
+            }
+          }
+        },
+        include: {
+          interactions: {
+            where: { userId }
+          }
+        },
         orderBy: { id: 'asc' },
+        take: newCardsNumber,
     })
 
     const result = [];
@@ -227,13 +263,13 @@ export async function getCardsForPractice(userId: string): Promise<ActionGetCard
             break;
         }
 
-        const errorLimit = Math.min(remainingErrors, ERRORS_PER_NEW[0]);
+        const errorLimit = Math.min(remainingErrors, ERROR_CARDS_NUMBER);
         for (let i = 0; i < errorLimit; i++) {
             result.push(arrErrorCards[errorIndex]);
             errorIndex++;
         }
 
-        const newLimit = Math.min(remainingNews, ERRORS_PER_NEW[1]);
+        const newLimit = Math.min(remainingNews, NEW_CARDS_NUMBER);
         for (let i = 0; i < newLimit; i++) {
             result.push(arrNewCards[newIndex]);
             newIndex++;
