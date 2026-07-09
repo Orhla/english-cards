@@ -11,7 +11,7 @@ import { ignoreCard, likeCard, recordAnswer } from "@/actions/actions";
 type Props = {
     card: WordCard,
     mode: Mode,
-    interaction?: { liked: boolean; ignored: boolean } | null
+    interaction: { liked: boolean; ignored: boolean }
 }
 
 enum CardStatus {
@@ -231,25 +231,23 @@ export default function WordCardView({card, mode, interaction}: Props) {
                     <div className="flex flex-row items-center gap-3">
                     <button
                         onClick={(e) => {
-                        e.stopPropagation();
-                        if (audioRef.current) {
-                            audioRef.current.pause();
-                        }
-                        audioRef.current = new Audio(`/audio/${card.word}.ogg`);
-                        audioRef.current.play();
+                            e.stopPropagation();
+                            if (audioRef.current) {
+                                audioRef.current.pause();
+                            }
+                            audioRef.current = new Audio(`/audio/${card.word}.ogg`);
+                            audioRef.current.play();
                         }}
                         className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-indigo-600 transition-colors"
                         title="Прослушать произношение"
                     >
-                        <svg
-                        xmlns="http://w3.org"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        className="w-5 h-5"
-                        >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
+                        <svg xmlns="http://w3.org"
+                             fill="none"
+                             viewBox="0 0 24 24"
+                             strokeWidth={2}
+                             stroke="currentColor"
+                             className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" />
                         </svg>
                     </button>
 

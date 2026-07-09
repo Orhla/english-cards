@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { wordCardFormAction } from "@/actions/actions";
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { Loader2, Save } from "lucide-react";
@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import AddArrayFieldButton from "@/components/AddArrayFieldButton";
 import DeleteArrayFieldButton from "@/components/DeleteArrayFieldButton";
+import { getWordTranscription, getWordTranslations } from "@/actions/actions_translate";
 
 type Props = {
   mode: "create" | "edit";
@@ -30,6 +31,53 @@ export default function AdminCardForm({ card, mode }: Props) {
 
     const [selectedParts, setSelectedParts] = useState<partOfSpeech[]>(card?.partsOfSpeech ?? []);
 
+    const transcriptionRef = useRef<HTMLInputElement>(null);
+    const translationRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+    const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        
+        const form = e.currentTarget.form;
+        if (!form) return;
+
+        const wordInput = form.elements.namedItem("word") as HTMLInputElement | null;
+        const wordValue = wordInput?.value?.trim();
+
+        if (!wordValue) {
+            alert("Сначала введите слово");
+            return;
+        }
+
+        try {
+            const [transcription, translations] = await Promise.all([
+                getWordTranscription(wordValue),
+                getWordTranslations(wordValue)
+            ]);
+
+            if (transcriptionRef.current) {
+                transcriptionRef.current.value = transcription;
+            }
+            
+
+            if (translations.length > 0) {
+                setTranslationCount(translations.length);
+
+                setTimeout(() => {
+                    translations.forEach((translation, index) => {
+                        const input = translationRefs.current[index];
+                        if (input) {
+                            input.value = translation;
+                        }
+                    });
+                });
+                
+            }
+
+        } catch (error) {
+            console.error("Ошибка при автозаполнении:", error instanceof Error ? error.message : "");
+        }
+    };
+
     return (
         <Card className="max-w-[600px] shadow-sm">
             <CardHeader>
@@ -46,16 +94,33 @@ export default function AdminCardForm({ card, mode }: Props) {
                 {/* Слово */}
                 <div className="space-y-1.5">
                     <label htmlFor="word" className="text-sm font-medium text-foreground">Слово</label>
-                    <Input id="word" name="word"
-                           defaultValue={card?.word ?? ""}
-                           placeholder="например, ephemeral"
-                           required disabled={isPending} />
+                    <div className="flex items-start gap-2">
+                        <Input id="word" name="word"
+                            defaultValue={card?.word ?? ""}
+                            placeholder="например, ephemeral"
+                            required disabled={isPending} />
+                        <div className="flex flex-col gap-1 shrink-0">
+                            <button type="button" 
+                                    disabled={isPending}
+                                    className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50"
+                                    onClick={handleAutoFill}>
+                                Заполнить транскрипцию и перевод
+                            </button>
+                            <button type="button" 
+                                    disabled={isPending}
+                                    className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50">
+                                Заполнить остальные поля
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Транскрипция */}
                 <div className="space-y-1.5">
                     <label htmlFor="transcription" className="text-sm font-medium text-foreground">Транскрипция</label>
-                    <Input id="transcription" name="transcription"
+                    <Input id="transcription"
+                           name="transcription"
+                           ref={transcriptionRef}
                            defaultValue={card?.transcription ?? ""}
                            placeholder="/ɪˈfemərəl/"
                            disabled={isPending} />
@@ -106,6 +171,7 @@ export default function AdminCardForm({ card, mode }: Props) {
                         {Array.from({ length: translationCount }, (_, index) => (
                             <div key={index} className="flex gap-2 items-center">
                                 <Input name="translation"
+                                       ref={(el) => { translationRefs.current[index] = el; }}
                                        defaultValue={card?.translation?.[index] ?? ""}
                                        placeholder={`Вариант перевода #${index + 1}`}
                                        disabled={isPending} />

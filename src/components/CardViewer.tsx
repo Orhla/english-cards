@@ -39,7 +39,7 @@ export default function CardViewer({cards, mode}: Props) {
           <WordCardView card={card}
                         mode={mode}
                         key={card.id}
-                        interaction={card.interactions && card.interactions.length > 0 ? card.interactions[0] : null} />
+                        interaction={card.interactions[0]} />
           <ArrowButton direction="right"
                       onClick={handleNext} />
         </div>
