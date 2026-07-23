@@ -29,6 +29,8 @@ model WordCard {
   translation   String[]
   meaning       String[]
   examples      String[]
+  level         wordLevel      @default(other)
+  topics        topic[]        @default([])
 
   interactions UserCardInteraction[]
 }
@@ -43,6 +45,48 @@ enum partOfSpeech {
   conjunction
   interjection
   determiner
+}
+
+enum wordLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+  other
+}
+
+enum topic {
+  abstract
+  appearance
+  city_life
+  clothes
+  communication
+  culture
+  education
+  emotions
+  entertainment
+  family
+  food
+  health
+  home
+  law
+  media
+  money
+  nature
+  personality
+  politics
+  science
+  shopping
+  society
+  sport
+  time
+  technology
+  travel  
+  weather
+  work
+  other
 }
 
 model User {
