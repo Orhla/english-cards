@@ -129,7 +129,7 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
 }
 
 
-export async function likeCard(cardId: number, nextState?: boolean) {
+export async function likeCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
   try {
@@ -147,7 +147,7 @@ export async function likeCard(cardId: number, nextState?: boolean) {
 }
 
 
-export async function ignoreCard(cardId: number, nextState?: boolean) {
+export async function ignoreCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
   try {
@@ -275,9 +275,25 @@ export async function getCardsForPractice(userId: string, limit: number = 10): P
             newIndex++;
         }
     }
+    result.sort(() => Math.random() - 0.5)
     return {success: true, data: result};
   } catch (error) {
     return {success: false, message: error instanceof Error ? error.message : "Не удалось загрузить карточки. Попробуйте позже."};
   }
 
+}
+
+
+export async function getAllTopics(): Promise<string[]> {
+  try {
+      const allTopics = await prisma.topic.findMany({
+        select: {
+          name: true,
+        }
+      });
+      return allTopics.map(topic => topic.name);
+  } catch (error) {
+      console.error(error instanceof Error ? error.message : "Не удалось получить названия топиков. Попробуйте позже.")
+      return ["other"];
+  }
 }

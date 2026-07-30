@@ -20,3 +20,30 @@ export const modeConfig = {
 export type WordCardWithInteractions = Prisma.WordCardGetPayload<{
   include: { interactions: true }
 }>;
+
+export type YandexGPTRole = 'system' | 'user' | 'assistant';
+
+export type YandexGPTMessage = {
+  role: YandexGPTRole;
+  text: string;
+};
+
+export type YandexGPTRequest = {
+  modelUri: string,
+  completionOptions: {
+    stream: boolean,
+    temperature: number
+  },
+  messages: YandexGPTMessage[],
+  jsonSchema: {
+    schema: object
+  }
+}
+
+
+export type YandexGPTResponse = {
+  meanings: string[]
+  examples: string[]
+  level: string
+  topics: string[]
+}

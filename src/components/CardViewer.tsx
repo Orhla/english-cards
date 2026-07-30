@@ -1,20 +1,21 @@
 "use client"
 
 // вот тут есть плюсы и минусы. Плюсы - мы переиспользуем "призма модель" не надо делать промежуточные типы. Минусы - мы привязаны к призма модели. Любое изменение в модели дойдет до компонента.
-import { useState } from "react";
+import { useContext, useState } from "react";
 import ArrowButton from "@/components/ArrowButton";
 import ErrorMessage from "@/components/ErrorMessage";
 import { Mode, WordCardWithInteractions } from "@/lib/types";
 import WordCardView from "@/components/WordCardView";
+import { InteractionsContext, InteractionsProvider } from "@/context/InteractionsContext";
 
 type Props = {
     cards: WordCardWithInteractions[],
     mode: Mode
 }
 
-export default function CardViewer({cards, mode}: Props) {
+function CardViewerContent({ cards, mode }: Props) {
     const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
-
+    const context = useContext(InteractionsContext);
 
     const handlePrev = () => {
         setCurrentCardIndex((currentCardIndex - 1 + cards.length) % cards.length);
@@ -25,23 +26,42 @@ export default function CardViewer({cards, mode}: Props) {
     };
 
     if (cards.length === 0) {
-      return (
-        <ErrorMessage message="Список карточек пуст" />
-      )
+      return <ErrorMessage message="Список карточек пуст" />
     }
 
     const card = cards[currentCardIndex];
 
+    const currentInteraction = context 
+      ? context.getInteraction(card.id) 
+      : (card.interactions?.[0] ?? { liked: false, ignored: false });
+
     return (
         <div className="flex flex-row items-center justify-center gap-6 w-full">
-          <ArrowButton direction="left"
-                      onClick={handlePrev} />
-          <WordCardView card={card}
-                        mode={mode}
-                        key={card.id}
-                        interaction={card.interactions[0]} />
-          <ArrowButton direction="right"
-                      onClick={handleNext} />
+          <ArrowButton direction="left" onClick={handlePrev} />
+          <WordCardView 
+            card={card}
+            mode={mode}
+            key={card.id} 
+            interaction={currentInteraction} 
+          />
+          <ArrowButton direction="right" onClick={handleNext} />
         </div>
+    );
+}
+
+export default function CardViewer(props: Props) {
+    const initialInteractions = props.cards.map(card => {
+      const serverInteraction = card.interactions?.[0];
+      return {
+        cardId: card.id,
+        liked: serverInteraction?.liked ?? false,
+        ignored: serverInteraction?.ignored ?? false,
+      };
+  });
+
+  return (
+    <InteractionsProvider initialInteractions={initialInteractions}>
+      <CardViewerContent {...props} />
+    </InteractionsProvider>
   );
 }

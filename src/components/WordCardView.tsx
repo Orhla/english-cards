@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useRef, useEffect, useMemo, useTransition } from "react";
+import { useState, useRef, useEffect, useMemo, useTransition, useContext } from "react";
 import { WordCard } from "@/generated/prisma/browser";
 import { Mode, modeConfig } from "@/lib/types";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { LANGUAGES } from "@/lib/consts";
 import { EyeOff, Heart } from "lucide-react";
 import { ignoreCard, likeCard, recordAnswer } from "@/actions/actions";
+import { InteractionsContext } from "@/context/InteractionsContext";
 
 type Props = {
     card: WordCard,
@@ -25,13 +26,17 @@ export default function WordCardView({card, mode, interaction}: Props) {
     const [isManuallyFlipped, setIsManuallyFlipped] = useState<boolean>(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [isPending, startTransition] = useTransition();
-    const [isLiked, setIsLiked] = useState(interaction?.liked ?? false);
-    const [isIgnored, setIsIgnored] = useState(interaction?.ignored ?? false);
+    // const [isLiked, setIsLiked] = useState(interaction?.liked ?? false);
+    // const [isIgnored, setIsIgnored] = useState(interaction?.ignored ?? false);
+    const isLiked = interaction?.liked ?? false;
+    const isIgnored = interaction?.ignored ?? false;
 
-    useEffect(() => {
-        setIsLiked(interaction?.liked ?? false);
-        setIsIgnored(interaction?.ignored ?? false);
-    }, [interaction]);
+    const context = useContext(InteractionsContext);
+
+    // useEffect(() => {
+    //     setIsLiked(interaction?.liked ?? false);
+    //     setIsIgnored(interaction?.ignored ?? false);
+    // }, [interaction]);
 
     const {
         transcript,
@@ -51,7 +56,8 @@ export default function WordCardView({card, mode, interaction}: Props) {
 
     const handleLike = () => {
         const nextLikeState = !isLiked;
-        setIsLiked(nextLikeState);
+        // setIsLiked(nextLikeState);
+        context?.setInteraction(card.id, { liked: nextLikeState });
         startTransition(async () => {
             await likeCard(card.id, nextLikeState);
         })
@@ -59,7 +65,8 @@ export default function WordCardView({card, mode, interaction}: Props) {
 
     const handleIgnore = () => {
         const nextIgnoreState = !isIgnored;
-        setIsIgnored(nextIgnoreState);
+        // setIsIgnored(nextIgnoreState);
+        context?.setInteraction(card.id, { ignored: nextIgnoreState });
         startTransition(async () => {
             await ignoreCard(card.id, nextIgnoreState);
         })
