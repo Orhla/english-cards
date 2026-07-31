@@ -98,7 +98,7 @@ export async function enrichWordCard(word: string): Promise<YandexGPTResponse> {
     const apiData = await response.json();
     console.log('response', response);
     console.log('apiData', apiData);
-    const jsonTextString = apiData.alternatives?.[0]?.message?.text;
+    const jsonTextString = apiData.result.alternatives?.[0]?.message?.text;
 
     if (!jsonTextString) {
         console.error("=== КРИТИЧЕСКАЯ ОШИБКА YANDEX GPT ===");
