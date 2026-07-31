@@ -29,8 +29,8 @@ model WordCard {
   translation   String[]
   meaning       String[]
   examples      String[]
-  level         wordLevel      @default(other)
-  topics        topic[]        @default([])
+  level         wordLevel?
+  topics        Topic[]
 
   interactions UserCardInteraction[]
 }
@@ -54,39 +54,12 @@ enum wordLevel {
   B2
   C1
   C2
-  other
 }
 
-enum topic {
-  abstract
-  appearance
-  city_life
-  clothes
-  communication
-  culture
-  education
-  emotions
-  entertainment
-  family
-  food
-  health
-  home
-  law
-  media
-  money
-  nature
-  personality
-  politics
-  science
-  shopping
-  society
-  sport
-  time
-  technology
-  travel  
-  weather
-  work
-  other
+model Topic {
+  id            Int            @id @default(autoincrement())
+  name          String
+  words         WordCard[]
 }
 
 model User {

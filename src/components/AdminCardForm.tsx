@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useRef, useState } from "react";
-import { wordCardFormAction } from "@/actions/actions";
+import { getAllTopics, wordCardFormAction } from "@/actions/actions";
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { Loader2, Save } from "lucide-react";
 
@@ -12,6 +12,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import AddArrayFieldButton from "@/components/AddArrayFieldButton";
 import DeleteArrayFieldButton from "@/components/DeleteArrayFieldButton";
 import { getWordTranscription, getWordTranslations } from "@/actions/actions_translate";
+import { enrichWordCard } from "@/actions/actions_yagpt";
 
 type Props = {
   mode: "create" | "edit";
@@ -30,9 +31,10 @@ export default function AdminCardForm({ card, mode }: Props) {
     const [exampleCount, setExampleCount] = useState(() => card?.examples?.length || 1);
 
     const [selectedParts, setSelectedParts] = useState<partOfSpeech[]>(card?.partsOfSpeech ?? []);
-
+    
     const transcriptionRef = useRef<HTMLInputElement>(null);
     const translationRefs = useRef<(HTMLInputElement | null)[]>([]);
+    const meaningRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
@@ -78,6 +80,48 @@ export default function AdminCardForm({ card, mode }: Props) {
         }
     };
 
+    const handleAutoFillOtherFields = async (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        
+        const form = e.currentTarget.form;
+        if (!form) return;
+
+        const wordInput = form.elements.namedItem("word") as HTMLInputElement | null;
+        const wordValue = wordInput?.value?.trim();
+
+        if (!wordValue) {
+            alert("Сначала введите слово");
+            return;
+        }
+
+        try {
+            console.log("1. Клиент: Отправляем слово в Server Action:", wordValue);
+            const otherFields = await enrichWordCard(wordValue);
+            console.log("3. Клиент: Получили ответ от Server Action:", otherFields);
+
+            if (!otherFields) {
+                throw Error("Yandex LLM API вернул пустое значение");
+            }
+            
+            if (otherFields.meanings.length > 0) {
+                setMeaningCount(otherFields.meanings.length);
+
+                setTimeout(() => {
+                    otherFields.meanings.forEach((meaning, index) => {
+                        const input = meaningRefs.current[index];
+                        if (input) {
+                            input.value = meaning;
+                        }
+                    });
+                });
+                
+            }
+
+        } catch (error) {
+            console.error("Ошибка при автозаполнении:", error instanceof Error ? error.message : "");
+        }
+    };
+
     return (
         <Card className="max-w-[600px] shadow-sm">
             <CardHeader>
@@ -108,7 +152,8 @@ export default function AdminCardForm({ card, mode }: Props) {
                             </button>
                             <button type="button" 
                                     disabled={isPending}
-                                    className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50">
+                                    className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50"
+                                    onClick={handleAutoFillOtherFields}>
                                 Заполнить остальные поля
                             </button>
                         </div>
