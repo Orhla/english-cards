@@ -18,7 +18,8 @@ export async function getAllEnglishCards(userId?: string): Promise<ActionGetCard
           include: {
             interactions: {
               where: userId ? { userId } : { userId: "" }
-            }
+            },
+            topics: true
           }
         });
         // момент в том, что сейчас все карточки выдаются в одном и том же формате. нам же надо какую-то рандомизацию. представь 20.000 карточек и нам нужно рандомно каждый раз выдавать.
@@ -284,14 +285,22 @@ export async function getCardsForPractice(userId: string, limit: number = 10): P
 }
 
 
+let cache: { value: string[]; expiresAt: number } | null = null;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+
 export async function getAllTopics(): Promise<string[]> {
+  if (cache && Date.now() < cache.expiresAt) {
+    return cache.value
+  }
   try {
       const allTopics = await prisma.topic.findMany({
         select: {
           name: true,
         }
       });
-      return allTopics.map(topic => topic.name);
+      const allTopicsArray = allTopics.map(topic => topic.name);
+      cache = { value: allTopicsArray, expiresAt: Date.now() + CACHE_TTL_MS }
+      return allTopicsArray;
   } catch (error) {
       console.error(error instanceof Error ? error.message : "Не удалось получить названия топиков. Попробуйте позже.")
       return ["other"];
