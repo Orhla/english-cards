@@ -21,15 +21,6 @@ const generateYandexLLMPrompt = (word: string, availableTopics: string[]) => `П
 - level: Определи уровень владения языком (CEFR) для слова "${word}".
 - topics: Выбери для слова ${word} от 1 до 3 категорий СТРОГО из этого списка: [${availableTopics.join(", ")}]. Использование тем не из списка запрещено.`
 
-const allTopics = await getAllTopics();
-
-const WordCardEnrichmentSchema = z.object({
-        meanings: z.array(z.string()).min(1).max(3),
-        examples: z.array(z.string()).min(2).max(4),
-        level: z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]),
-        topics: z.array(z.string().refine((topic) => allTopics.includes(topic),
-                            { message: "Данный топик отсутствует в разрешенном списке базы данных" })).min(1).max(3)
-    })
 
 export type WordCardEnrichment = z.infer<typeof WordCardEnrichmentSchema>
 
@@ -38,6 +29,16 @@ export type WordEnrichmentStatus =
     | { success: false, message: string }
 
 export async function wordCardEnrichmentAgent(word: string): Promise<WordEnrichmentStatus> {
+
+    const allTopics = await getAllTopics();
+
+    const WordCardEnrichmentSchema = z.object({
+        meanings: z.array(z.string()).min(1).max(3),
+        examples: z.array(z.string()).min(2).max(4),
+        level: z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]),
+        topics: z.array(z.string().refine((topic) => allTopics.includes(topic),
+            { message: "Данный топик отсутствует в разрешенном списке базы данных" })).min(1).max(3)
+    })
 
     const jsonTextResult = await callYandexLLM({
                 modelUri: `gpt://${FOLDER_ID}/yandexgpt-5.1`,

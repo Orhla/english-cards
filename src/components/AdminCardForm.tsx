@@ -16,7 +16,7 @@ import { enrichWordCard } from "@/actions/actions_yagpt";
 
 type Props = {
   mode: "create" | "edit";
-  card?: WordCard;
+  card?: WordCard & {topics: string[]};
   allTopics?: string[];
 };
 
@@ -30,16 +30,17 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
     const [translation, setTranslation] = useState<string[]>(card?.translation ?? [""]);
     const [meanings, setMeanings] = useState<string[]>(card?.meaning ?? [""]);
     const [examples, setExamples] = useState<string[]>(card?.examples ?? [""]);
+    const [topics, setTopics] = useState<string[]>(card?.topics ?? []);
     const [autoFillError, setAutoFillError] = useState<string | null>(null);
 
     const [selectedParts, setSelectedParts] = useState<partOfSpeech[]>(card?.partsOfSpeech ?? []);
-    
+
     const transcriptionRef = useRef<HTMLInputElement>(null);
-    
+
 
     const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
-        
+
         const form = e.currentTarget.form;
         if (!form) return;
 
@@ -60,7 +61,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             if (transcriptionRef.current) {
                 transcriptionRef.current.value = transcription;
             }
-            
+
             if (translations && translations.length > 0) {
                 setTranslation(translations);
             }
@@ -72,7 +73,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
     const handleAutoFillOtherFields = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
-        
+
         const form = e.currentTarget.form;
         if (!form) return;
 
@@ -88,7 +89,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             console.log("1. Клиент: Отправляем слово в Server Action:", wordValue);
             const otherFields = await enrichWordCard(wordValue);
             console.log("3. Клиент: Получили ответ от Server Action:", otherFields);
-            
+
             if (otherFields.meanings && otherFields.meanings.length > 0) {
                 setMeanings(otherFields.meanings);
             }
@@ -125,13 +126,13 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                             placeholder="например, ephemeral"
                             required disabled={isPending} />
                         <div className="flex flex-col gap-1 shrink-0">
-                            <button type="button" 
+                            <button type="button"
                                     disabled={isPending}
                                     className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50"
                                     onClick={handleAutoFill}>
                                 Заполнить транскрипцию и перевод
                             </button>
-                            <button type="button" 
+                            <button type="button"
                                     disabled={isPending}
                                     className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50"
                                     onClick={handleAutoFillOtherFields}>
@@ -199,7 +200,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                     <div className="flex flex-col gap-2">
                         {translation.map((trans, index) => (
                             <div key={index} className="flex gap-2 items-center">
-                                <Input 
+                                <Input
                                     name="translation"
                                     value={trans}
                                     onChange={(e) => {
@@ -229,7 +230,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                     <div className="flex flex-col gap-2">
                         {meanings.map((meaning, index) => (
                             <div key={index} className="flex gap-2 items-center">
-                                <Input 
+                                <Input
                                     name="meaning"
                                     value={meaning}
                                     onChange={(e) => {
@@ -259,7 +260,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                     <div className="flex flex-col gap-2">
                         {examples.map((example, index) => (
                             <div key={index} className="flex gap-2 items-center">
-                                <Input 
+                                <Input
                                     name="example"
                                     value={example}
                                     onChange={(e) => {
@@ -281,22 +282,18 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 </div>
 
                 {/* Топики */}
-                {/* <div className="space-y-3">
-                    <div className="text-sm font-medium text-foreground">Части речи</div>
+                <div className="space-y-3">
+                    <div className="text-sm font-medium text-foreground">Топики</div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {allTopics?.map((topic) => (
+                        {allTopics.map((topic) => (
                             <div key={topic} className="flex items-center gap-2">
                                 <Checkbox
                                     id={`topic-${topic}`}
                                     name="topics"
                                     value={topic}
-                                    checked={selectedParts.includes(topic)}
+                                    checked={topics.includes(topic)}
                                     disabled={isPending}
-                                    onCheckedChange={(checked) =>
-                                        setSelectedParts((prev) =>
-                                            checked ? [...prev, topic] : prev.filter((p) => p !== topic)
-                                        )
-                                    } />
+                                    onCheckedChange={(checked) =>{console.warn("Checked", checked)}} />
                                 <label htmlFor={`topic-${topic}`}
                                        className="text-sm font-normal text-foreground/90 cursor-pointer select-none">
                                     {topic}
@@ -304,7 +301,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                             </div>
                         ))}
                     </div>
-                </div> */}
+                </div>
 
                 {state?.error && (
                     <p className="text-sm text-destructive">{state.error}</p>
