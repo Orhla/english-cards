@@ -2,6 +2,7 @@ import ErrorMessage from "@/components/ErrorMessage";
 import { prisma } from "@/lib/prisma";
 import AdminCardForm from "@/components/AdminCardForm";
 import AdminCardView from "@/components/AdminCardView";
+import { getAllTopics } from "@/actions/actions";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -22,15 +23,21 @@ export default async function WordCardsPage({ params, searchParams }: Props) {
 
     const card = await prisma.wordCard.findUnique({
         where: { id: cardId },
+        include: {
+            topics: true
+        }
     });
 
     if (!card) {
         return <ErrorMessage message="Карточка не найдена" />;
     }
 
+    const allTopics = await getAllTopics();
+
     if (mode === "view") {
         return <AdminCardView card={card} />;
     }
     return <AdminCardForm card={card}
-                          mode={mode} />;
+                          mode={mode}
+                          allTopics={allTopics} />;
 }
