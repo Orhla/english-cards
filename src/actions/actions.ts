@@ -7,6 +7,7 @@ import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
 import { ERROR_CARDS_NUMBER, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
+import { logger } from "@/lib/logger";
 
 type ActionGetCardsStatus =
     | { success: true, data: WordCardWithInteractions[] }
@@ -31,7 +32,12 @@ export async function getAllEnglishCards(userId?: string): Promise<ActionGetCard
 }
 
 export async function wordCardFormAction(prevState: unknown, formData: FormData): Promise<{ error?: string } | null> {
-    await requireAdmin();
+    const session = await requireAdmin();
+    logger.info("Форма сохранения карточки отправлена", {
+        component: "wordCardFormAction",
+        userId: session.user.id
+    });
+
     const id = formData.get("id")?.toString();
     const word = formData.get("word")?.toString().trim() ?? "";
     const transcription = formData.get("transcription")?.toString().trim() ?? "";
@@ -39,23 +45,33 @@ export async function wordCardFormAction(prevState: unknown, formData: FormData)
     const meaning = formData.getAll("meaning").map(String).filter(Boolean);
     const examples = formData.getAll("example").map(String).filter(Boolean);
     const partsOfSpeech = formData.getAll("partsOfSpeech").map(String) as partOfSpeech[];
+    const topics = formData.getAll("topic").map(String).filter(Boolean);
 
     const audioFile = formData.get("audio") as File | null;
     if (audioFile && audioFile.size > 0) {
-        console.log("audio file:", audioFile.name, "size:", audioFile.size, "bytes");
+        logger.info("Информация об аудио файле: ", {"component": "wordCardFormAction", "audio_file_name": audioFile.name, "size": audioFile.size});
     } else {
-        console.log("audio file: not provided");
+        logger.info("Аудио файл отсутствует", {"component": "wordCardFormAction"});
     }
 
     try {
         if (id) {
             await prisma.wordCard.update({
                 where: { id: Number(id) },
-                data: { word, transcription, translation, meaning, examples, partsOfSpeech },
+                data: { word, transcription, translation, meaning, examples, partsOfSpeech,
+                        topics: {
+                          set: [], 
+                          connect: topics.map((topicName) => ({name: topicName})),
+                        },
+                },
             });
         } else {
             await prisma.wordCard.create({
-                data: { word, transcription, translation, meaning, examples, partsOfSpeech },
+                data: { word, transcription, translation, meaning, examples, partsOfSpeech,
+                        topics: {
+                            connect: topics.map((topicName) => ({name: topicName})),
+                        },
+                },
             });
         }
     } catch (error) {
@@ -67,7 +83,14 @@ export async function wordCardFormAction(prevState: unknown, formData: FormData)
 
 
 export async function updateWordCard(card: WordCard) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  logger.info("Карточка слова обновлена", {
+        component: "updateWordCard",
+        userId: session.user.id,
+        cardId: card.id,
+        cardWord: card.word
+    });
+
   try {
     await prisma.wordCard.update({
       where: { id: card.id },
@@ -83,14 +106,20 @@ export async function updateWordCard(card: WordCard) {
 
     return { success: true };
   } catch (error) {
-        console.error("Ошибка при обновлении карточки:", error);
+        logger.error("Ошибка при обновлении карточки", {"component": "updateWordCard", "error": `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось сохранить изменения: ${error instanceof Error ? error.message : error}` };
   }
 }
 
 
 export async function deleteWordCard(cardId: number) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  logger.info("Слово удалено", {
+        component: "deleteWordCard",
+        userId: session.user.id,
+        cardId: cardId,
+    });
+
   try {
     await prisma.wordCard.delete({
       where: { id: cardId },
@@ -98,14 +127,20 @@ export async function deleteWordCard(cardId: number) {
 
     return { success: true };
   } catch (error) {
-        console.error("Ошибка при удалении карточки:", error);
+        logger.error("Ошибка при удалении карточки", {"component": "deleteWordCard", "error": `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось удалить карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
 
 
 export async function createWordCard(card: Omit<WordCard, 'id'>) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  logger.info("Карточка слова создана", {
+        component: "createWordCard",
+        userId: session.user.id,
+        cardWord: card.word,
+    });
+
   let isSuccess = false;
   try {
     await prisma.wordCard.create({
@@ -120,7 +155,7 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
     });
     isSuccess = true;
   } catch (error) {
-        console.error("Ошибка при создании карточки:", error);
+        logger.error("Ошибка при создании карточки", {"component": "createWordCard", "error": `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось создать карточку: ${error instanceof Error ? error.message : error}` };
   }
 
@@ -133,6 +168,12 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
 export async function likeCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
+  logger.info("Нажата кнопка лайка", {
+        component: "likeCard",
+        userId: userId,
+        cardId: cardId,
+    });
+
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -142,7 +183,7 @@ export async function likeCard(cardId: number, nextState: boolean) {
     revalidatePath("/practice");
     return { success: true };
   } catch (error) {
-      console.error("Ошибка при лайке карточки:", error);
+      logger.error("Ошибка при лайке карточки", {"component": "likeCard", "error": `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Не удалось лайкнуть карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -151,6 +192,12 @@ export async function likeCard(cardId: number, nextState: boolean) {
 export async function ignoreCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
+  logger.info("Нажата кнопка игнора", {
+        component: "ignoreCard",
+        userId: userId,
+        cardId: cardId,
+    });
+
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -160,7 +207,7 @@ export async function ignoreCard(cardId: number, nextState: boolean) {
     revalidatePath("/practice");
     return { success: true };
   } catch (error) {
-      console.error("Ошибка при добавлении карточки в игнор:", error);
+      logger.error("Ошибка при добавлении карточки в игнор", {"component": "ignoreCard", "error": `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Не удалось добавить карточку в игнор: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -169,6 +216,12 @@ export async function ignoreCard(cardId: number, nextState: boolean) {
 export async function recordAnswer(cardId: number, isCorrect: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
+  logger.info("Нажата кнопка записи голоса в режиме Практика", {
+        component: "ignoreCard",
+        userId: userId,
+        cardId: cardId,
+    });
+
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -181,7 +234,7 @@ export async function recordAnswer(cardId: number, isCorrect: boolean) {
     });
     return { success: true };
   } catch (error) {
-      console.error("Ошибка при обновлении статистики правильных ответов:", error);
+      logger.error("Ошибка при обновлении статистики правильных ответов", {"component": "recordAnswer", "error": `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Ошибка при обновлении статистики правильных ответов: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -214,7 +267,8 @@ export async function getCardsForPractice(userId: string, limit: number = 10): P
           include: {
             interactions: {
               where: { userId } 
-            }
+            },
+            topics: true,
           }
         }
       },
@@ -234,7 +288,8 @@ export async function getCardsForPractice(userId: string, limit: number = 10): P
         include: {
           interactions: {
             where: { userId }
-          }
+          },
+          topics: true,
         },
         orderBy: { id: 'asc' },
         take: newCardsNumber,
@@ -302,7 +357,7 @@ export async function getAllTopics(): Promise<string[]> {
       cache = { value: allTopicsArray, expiresAt: Date.now() + CACHE_TTL_MS }
       return allTopicsArray;
   } catch (error) {
-      console.error(error instanceof Error ? error.message : "Не удалось получить названия топиков. Попробуйте позже.")
+      logger.error("Ошибка при получении названий топиков", {"component": "getAllTopics", "error": `${error instanceof Error ? error.message : error}`});
       return ["other"];
   }
 }

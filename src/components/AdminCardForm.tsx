@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useRef, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { wordCardFormAction } from "@/actions/actions";
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { Loader2, Save } from "lucide-react";
@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import AddArrayFieldButton from "@/components/AddArrayFieldButton";
-import DeleteArrayFieldButton from "@/components/DeleteArrayFieldButton";
+import ArrayFieldInput, { ArrayFieldItem } from "@/components/ArrayFieldInput";
 import { getWordTranscription, getWordTranslations } from "@/actions/actions_translate";
 import { enrichWordCard } from "@/actions/actions_yagpt";
 
@@ -27,17 +26,28 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
     const isEditMode = mode === "edit";
 
-    const [translation, setTranslation] = useState<string[]>(card?.translation ?? [""]);
-    const [meanings, setMeanings] = useState<string[]>(card?.meaning ?? [""]);
-    const [examples, setExamples] = useState<string[]>(card?.examples ?? [""]);
+    const [transcription, setTranscription] = useState<string>(card?.transcription ?? "");
+    const [translation, setTranslation] = useState<ArrayFieldItem[]>(() => 
+                                                card?.translation && card.translation.length > 0
+                                                    ? card.translation.map((val) => ({ id: crypto.randomUUID(), value: val }))
+                                                    : [{ id: crypto.randomUUID(), value: "" }]
+    );
+    const [meanings, setMeanings] = useState<ArrayFieldItem[]>(() => 
+                                            card?.meaning && card.meaning.length > 0
+                                                ? card.meaning.map((val) => ({ id: crypto.randomUUID(), value: val }))
+                                                : [{ id: crypto.randomUUID(), value: "" }]
+    );
+    const [examples, setExamples] = useState<ArrayFieldItem[]>(() => 
+                                            card?.examples && card.examples.length > 0
+                                                ? card.examples.map((val) => ({ id: crypto.randomUUID(), value: val }))
+                                                : [{ id: crypto.randomUUID(), value: "" }]
+                                        );
     const [topics, setTopics] = useState<string[]>(card?.topics ?? []);
     const [autoFillError, setAutoFillError] = useState<string | null>(null);
 
     const [selectedParts, setSelectedParts] = useState<partOfSpeech[]>(card?.partsOfSpeech ?? []);
 
-    const transcriptionRef = useRef<HTMLInputElement>(null);
-
-
+    
     const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
 
@@ -58,12 +68,16 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 getWordTranslations(wordValue)
             ]);
 
-            if (transcriptionRef.current) {
-                transcriptionRef.current.value = transcription;
+            if (transcription) {
+                setTranscription(transcription);
             }
 
             if (translations && translations.length > 0) {
-                setTranslation(translations);
+                const formattedTranslations = translations.map((text) => ({
+                    id: crypto.randomUUID(),
+                    value: text
+                }));
+                setTranslation(formattedTranslations);
             }
 
         } catch (error) {
@@ -73,6 +87,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
     const handleAutoFillOtherFields = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault();
+        setAutoFillError(null);
 
         const form = e.currentTarget.form;
         if (!form) return;
@@ -86,22 +101,65 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         }
 
         try {
-            console.log("1. Клиент: Отправляем слово в Server Action:", wordValue);
             const otherFields = await enrichWordCard(wordValue);
-            console.log("3. Клиент: Получили ответ от Server Action:", otherFields);
-
+            
             if (otherFields.meanings && otherFields.meanings.length > 0) {
-                setMeanings(otherFields.meanings);
+                const formattedMeanings = otherFields.meanings.map((text) => ({
+                    id: crypto.randomUUID(),
+                    value: text
+                }));
+                setMeanings(formattedMeanings);
             }
 
             if (otherFields.examples && otherFields.examples.length > 0) {
-                setExamples(otherFields.examples);
+                const formattedExamples = otherFields.examples.map((text) => ({
+                    id: crypto.randomUUID(),
+                    value: text
+                }));
+                setExamples(formattedExamples);
+            }
+
+            if (otherFields.topics && otherFields.topics.length > 0) {
+                setTopics(otherFields.topics);
             }
 
         } catch (error) {
             setAutoFillError(error instanceof Error ? error.message : "Ошибка при автозаполнении");
             console.error("Ошибка при автозаполнении:", error instanceof Error ? error.message : "");
         }
+    };
+
+    const handleClientSubmit = (formData: FormData) => {
+        
+        formData.delete("translation");
+        formData.delete("meaning");
+        formData.delete("example");
+        formData.delete("topic");
+
+        translation
+            .map((item) => item.value)
+            .filter(Boolean)
+            .forEach((val) => formData.append("translation", val));
+
+        meanings
+            .map((item) => item.value)
+            .filter(Boolean)
+            .forEach((val) => formData.append("meaning", val));
+
+        examples
+            .map((item) => item.value)
+            .filter(Boolean)
+            .forEach((val) => formData.append("example", val));
+
+        topics.forEach((topic) => formData.append("topic", topic));
+
+        // if (level) {
+        //     formData.set("level", level);
+        // }
+
+        startTransition(() => {
+            formAction(formData);
+        });
     };
 
     return (
@@ -112,7 +170,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 </CardTitle>
             </CardHeader>
 
-            <form action={formAction}>
+            <form action={handleClientSubmit}>
                 {isEditMode && <input type="hidden" name="id" value={card?.id} />}
 
                 <CardContent className="space-y-6">
@@ -150,8 +208,8 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                     <label htmlFor="transcription" className="text-sm font-medium text-foreground">Транскрипция</label>
                     <Input id="transcription"
                            name="transcription"
-                           ref={transcriptionRef}
-                           defaultValue={card?.transcription ?? ""}
+                           value={transcription}
+                           onChange={(e) => setTranscription(e.target.value)}
                            placeholder="/ɪˈfemərəl/"
                            disabled={isPending} />
                 </div>
@@ -192,108 +250,48 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 </div>
 
                 {/* Перевод */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <div className="text-sm font-medium text-foreground">Перевод</div>
-                        <AddArrayFieldButton onClick={() => setTranslation((prev) => [...prev, ""])} disabled={isPending} />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        {translation.map((trans, index) => (
-                            <div key={index} className="flex gap-2 items-center">
-                                <Input
-                                    name="translation"
-                                    value={trans}
-                                    onChange={(e) => {
-                                        const updated = [...translation];
-                                        updated[index] = e.target.value;
-                                        setTranslation(updated);
-                                    }}
-                                    placeholder={`Значение #${index + 1}`}
-                                    disabled={isPending} />
-                                <DeleteArrayFieldButton disabled={isPending || translation.length <= 1}
-                                                        onClick={() => {
-                                                            if (translation.length > 1) {
-                                                                setTranslation((prev) => prev.filter((_, i) => i !== index));
-                                                            }
-                                                        }} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <ArrayFieldInput label="Перевод"
+                                 name="translation"
+                                 values={translation}
+                                 onChange={setTranslation}
+                                 placeholder="Перевод"
+                                 disabled={isPending} />                
 
                 {/* Значение */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <div className="text-sm font-medium text-foreground">Значение</div>
-                        <AddArrayFieldButton onClick={() => setMeanings((prev) => [...prev, ""])} disabled={isPending} />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        {meanings.map((meaning, index) => (
-                            <div key={index} className="flex gap-2 items-center">
-                                <Input
-                                    name="meaning"
-                                    value={meaning}
-                                    onChange={(e) => {
-                                        const updated = [...meanings];
-                                        updated[index] = e.target.value;
-                                        setMeanings(updated);
-                                    }}
-                                    placeholder={`Значение #${index + 1}`}
-                                    disabled={isPending} />
-                                <DeleteArrayFieldButton disabled={isPending || meanings.length <= 1}
-                                                        onClick={() => {
-                                                            if (meanings.length > 1) {
-                                                                setMeanings((prev) => prev.filter((_, i) => i !== index));
-                                                            }
-                                                        }} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <ArrayFieldInput label="Значение"
+                                 name="meaning"
+                                 values={meanings}
+                                 onChange={setMeanings}
+                                 placeholder="Значение"
+                                 disabled={isPending} />
 
                 {/* Примеры */}
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <div className="text-sm font-medium text-foreground">Примеры</div>
-                        <AddArrayFieldButton onClick={() => setExamples((prev) => [...prev, ""])} disabled={isPending} />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                        {examples.map((example, index) => (
-                            <div key={index} className="flex gap-2 items-center">
-                                <Input
-                                    name="example"
-                                    value={example}
-                                    onChange={(e) => {
-                                        const updated = [...examples];
-                                        updated[index] = e.target.value;
-                                        setExamples(updated);
-                                    }}
-                                    placeholder={`Значение #${index + 1}`}
-                                    disabled={isPending} />
-                                <DeleteArrayFieldButton disabled={isPending || examples.length <= 1}
-                                                        onClick={() => {
-                                                            if (examples.length > 1) {
-                                                                setExamples((prev) => prev.filter((_, i) => i !== index));
-                                                            }
-                                                        }} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                <ArrayFieldInput label="Примеры"
+                                 name="example"
+                                 values={examples}
+                                 onChange={setExamples}
+                                 placeholder="Пример"
+                                 disabled={isPending} />
 
                 {/* Топики */}
                 <div className="space-y-3">
                     <div className="text-sm font-medium text-foreground">Топики</div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {allTopics.map((topic) => (
+                        {allTopics?.map((topic) => (
                             <div key={topic} className="flex items-center gap-2">
                                 <Checkbox
                                     id={`topic-${topic}`}
-                                    name="topics"
+                                    name="topic"
                                     value={topic}
                                     checked={topics.includes(topic)}
                                     disabled={isPending}
-                                    onCheckedChange={(checked) =>{console.warn("Checked", checked)}} />
+                                    onCheckedChange={(checked) => {
+                                                        if (checked) {
+                                                            setTopics((prev) => [...prev, topic]);
+                                                        } else {
+                                                            setTopics((prev) => prev.filter((t) => t !== topic));
+                                                        }
+                                                    }} />
                                 <label htmlFor={`topic-${topic}`}
                                        className="text-sm font-normal text-foreground/90 cursor-pointer select-none">
                                     {topic}

@@ -21,12 +21,19 @@ export default async function WordCardsPage({ params, searchParams }: Props) {
     }
     const cardId = Number(cardIdStr);
 
-    const card = await prisma.wordCard.findUnique({
+    const cardData = await prisma.wordCard.findUnique({
         where: { id: cardId },
         include: {
-            topics: true
+            topics: {
+                select: { name: true }
+            }
         }
     });
+
+    const card = cardData ? {
+        ...cardData,
+        topics: cardData.topics.map(t => t.name)
+    } : undefined;
 
     if (!card) {
         return <ErrorMessage message="Карточка не найдена" />;

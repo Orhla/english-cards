@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export async function withRetry<T>(fn: () => Promise<T>, attempts: number = 5, delay: number = 1000): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, attempts: number = 5, delay: number = 1000, skipOn?: Array<new (...args: any[]) => Error>): Promise<T> {
 
     if (attempts <= 0) {
         throw new Error("Параметр attempts должен быть больше 0");
@@ -21,6 +21,13 @@ export async function withRetry<T>(fn: () => Promise<T>, attempts: number = 5, d
         } catch (error) {
             if (i === attempts - 1) {
                 throw error;
+            }
+
+            if (skipOn && error instanceof Error) {
+                const skipFlag = skipOn.some((ErrorClass) => error instanceof ErrorClass);
+                if (skipFlag) {
+                    throw error;
+                }
             }
 
             const currentDelay = delay * Math.pow(2, i);

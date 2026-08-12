@@ -1,8 +1,8 @@
-import { createWriteStream } from "fs";
 import { AUDIO_DIR, YANDEX_API_KEY, YANDEX_BASE_URL } from "@/lib/consts";
 import { Writable } from "stream";
 import { access, open, unlink } from "fs/promises";
 import { WordCard } from "@/generated/prisma/browser";
+import { logger } from "@/lib/logger";
 
 export async function generateEnglishAudioFile(card: WordCard, langCode: string, audioDir: string = AUDIO_DIR, yandexApiKey: string = YANDEX_API_KEY) {
     if (!yandexApiKey) {
@@ -49,7 +49,7 @@ export async function generateEnglishAudioFile(card: WordCard, langCode: string,
     try {
         await response.body.pipeTo(Writable.toWeb(fileStream));
     } catch (error) {
-        console.error("Ошибка при сохранении аудио файла:", error);
+        logger.error("Ошибка при сохранении аудио файла", {"component": "generateEnglishAudioFile", "error": `${error instanceof Error ? error.message : error}`});
         fileStream.destroy();
         await fileHandle.close()
         await unlink(audioPath);
