@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { wordCardFormAction } from "@/actions/actions";
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { Loader2, Save } from "lucide-react";
@@ -129,39 +129,6 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         }
     };
 
-    const handleClientSubmit = (formData: FormData) => {
-        
-        formData.delete("translation");
-        formData.delete("meaning");
-        formData.delete("example");
-        formData.delete("topic");
-
-        translation
-            .map((item) => item.value)
-            .filter(Boolean)
-            .forEach((val) => formData.append("translation", val));
-
-        meanings
-            .map((item) => item.value)
-            .filter(Boolean)
-            .forEach((val) => formData.append("meaning", val));
-
-        examples
-            .map((item) => item.value)
-            .filter(Boolean)
-            .forEach((val) => formData.append("example", val));
-
-        topics.forEach((topic) => formData.append("topic", topic));
-
-        // if (level) {
-        //     formData.set("level", level);
-        // }
-
-        startTransition(() => {
-            formAction(formData);
-        });
-    };
-
     return (
         <Card className="max-w-[600px] shadow-sm">
             <CardHeader>
@@ -170,7 +137,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 </CardTitle>
             </CardHeader>
 
-            <form action={handleClientSubmit}>
+            <form action={formAction}>
                 {isEditMode && <input type="hidden" name="id" value={card?.id} />}
 
                 <CardContent className="space-y-6">

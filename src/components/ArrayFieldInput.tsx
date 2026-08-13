@@ -51,7 +51,7 @@ export default function ArrayFieldInput({label, name, values, onChange, placehol
                 {values.map((item) => (
                     <div key={item.id} className="flex gap-2 items-center">
                         <Input
-                            name={`${name}[]`}
+                            name={name}
                             value={item.value}
                             onChange={(e) => handleInputChange(item.id, e.target.value)}
                             placeholder={placeholder}
