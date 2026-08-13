@@ -33,46 +33,50 @@ export async function getAllEnglishCards(userId?: string): Promise<ActionGetCard
     }
 }
 
-export async function wordCardFormAction(prevState: unknown, formData: FormData): Promise<{ error?: string } | null> {
+export type WordCardFormPayload = {
+    id?: string
+    word: string
+    transcription: string
+    translation: string[]
+    meaning: string[]
+    example: string[]
+    partsOfSpeech: partOfSpeech[]
+    topics: string[]
+    audio?: File
+}
+
+export async function wordCardFormAction(prevState: unknown, data: WordCardFormPayload): Promise<{ error?: string } | null> {
     const session = await requireAdmin();
     logger.info("Форма сохранения карточки отправлена", {
         component: "wordCardFormAction",
         userId: session.user.id
     });
 
-    const id = formData.get("id")?.toString();
-    const word = formData.get("word")?.toString().trim() ?? "";
-    const transcription = formData.get("transcription")?.toString().trim() ?? "";
-    const translation = formData.getAll("translation").map(String).filter(Boolean);
-    const meaning = formData.getAll("meaning").map(String).filter(Boolean);
-    const examples = formData.getAll("example").map(String).filter(Boolean);
-    const partsOfSpeech = formData.getAll("partsOfSpeech").map(String) as partOfSpeech[];
-    const topics = formData.getAll("topic").map(String).filter(Boolean);
+    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audio } = data;
 
-    const audioFile = formData.get("audio") as File | null;
-    if (audioFile && audioFile.size > 0) {
-        logger.info("Информация об аудио файле: ", {"component": "wordCardFormAction", "audio_file_name": audioFile.name, "size": audioFile.size});
-        await saveAudioFile(word, audioFile);
+    if (audio && audio.size > 0) {
+        logger.info("Информация об аудио файле: ", { component: "wordCardFormAction", audio_file_name: audio.name, size: audio.size });
+        await saveAudioFile(word, audio);
     } else {
-        logger.info("Аудио файл отсутствует", {"component": "wordCardFormAction"});
+        logger.info("Аудио файл отсутствует", { component: "wordCardFormAction" });
     }
 
     try {
         if (id) {
             await prisma.wordCard.update({
                 where: { id: Number(id) },
-                data: { word, transcription, translation, meaning, examples, partsOfSpeech,
+                data: { word, transcription, translation, meaning, examples: example, partsOfSpeech,
                         topics: {
-                          set: [], 
-                          connect: topics.map((topicName) => ({name: topicName})),
+                            set: [],
+                            connect: topics.map((topicName) => ({ name: topicName })),
                         },
                 },
             });
         } else {
             await prisma.wordCard.create({
-                data: { word, transcription, translation, meaning, examples, partsOfSpeech,
+                data: { word, transcription, translation, meaning, examples: example, partsOfSpeech,
                         topics: {
-                            connect: topics.map((topicName) => ({name: topicName})),
+                            connect: topics.map((topicName) => ({ name: topicName })),
                         },
                 },
             });
