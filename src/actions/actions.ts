@@ -5,9 +5,11 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ERROR_CARDS_NUMBER, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
+import { ALLOWED_AUDIO_TYPES, AUDIO_DIR, ERROR_CARDS_NUMBER, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
+import { access, writeFile } from "fs/promises";
+import path from "path";
 
 type ActionGetCardsStatus =
     | { success: true, data: WordCardWithInteractions[] }
@@ -50,6 +52,7 @@ export async function wordCardFormAction(prevState: unknown, formData: FormData)
     const audioFile = formData.get("audio") as File | null;
     if (audioFile && audioFile.size > 0) {
         logger.info("Информация об аудио файле: ", {"component": "wordCardFormAction", "audio_file_name": audioFile.name, "size": audioFile.size});
+        await saveAudioFile(word, audioFile);
     } else {
         logger.info("Аудио файл отсутствует", {"component": "wordCardFormAction"});
     }
@@ -360,4 +363,39 @@ export async function getAllTopics(): Promise<string[]> {
       logger.error("Ошибка при получении названий топиков", {"component": "getAllTopics", "error": `${error instanceof Error ? error.message : error}`});
       return ["other"];
   }
+}
+
+
+export async function saveAudioFile(word: string, file: File): Promise<void> {
+    if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
+      logger.error("Аудио файл имеет неверный формат", {"component": "saveAudioFile", "type": file.type});
+      throw new Error(`Аудио файл имеет неверный формат: ${file.type}`);
+    } 
+    
+    if (file.size > MAX_AUDIO_FILE_SIZE_IN_BYTES) {
+      logger.error("Размер аудио файла превышает допустимый", {"component": "saveAudioFile", "type": file.size});
+      throw new Error(`Размер аудио файла превышает допустимый: ${file.size} > ${MAX_AUDIO_FILE_SIZE_IN_BYTES}`);
+    }
+
+    const fileExt = path.extname(file.name);
+    const audioPath = path.join(AUDIO_DIR, `${word}${fileExt}`);
+    try {
+        await access(audioPath);
+        return;
+    } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
+            logger.error("Нет доступа к папке с аудио файлами", {"component": "saveAudioFile", "error": `${error instanceof Error ? error.message : error}`});
+            throw new Error(`Нет доступа к папке с аудио файлами: ${error instanceof Error ? error.message : error}`);
+        }
+    }
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        await writeFile(audioPath, buffer);
+    } catch (error) {
+        logger.error("Ошибка при сохранении аудио файла", {"component": "saveAudioFile", "error": `${error instanceof Error ? error.message : error}`});
+        throw new Error(`Ошибка при сохранении аудио файла: ${error instanceof Error ? error.message : error}`);
+    }
 }
