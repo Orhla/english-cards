@@ -4,6 +4,7 @@ import { mkdir } from "fs/promises";
 import { asyncPool, withRetry } from "@/lib/utils";
 import { AUDIO_DIR, LANGUAGES, YANDEX_API_KEY } from "@/lib/consts";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
+import { logger } from "@/lib/logger";
 
 const POOL_LIMIT = 5;
 
@@ -25,5 +26,5 @@ async function getEnglishAudioFiles() {
 try {
     await getEnglishAudioFiles();
 } catch (error) {
-    console.error(error instanceof Error ? error.message : "Не удалось сгенерировать аудиофайлы");
+    logger.error("Ошибка при генерации аудио файлов", {"component": "getEnglishAudioFiles", "error": `${error instanceof Error ? error.message : error}`});
 }

@@ -26,3 +26,11 @@ export const MAX_CARDS_NUMBER = 20;
 
 export const ERROR_CARDS_NUMBER = 2;
 export const NEW_CARDS_NUMBER = 1;
+
+export const ALLOWED_AUDIO_TYPES = [
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+];
+
+export const MAX_AUDIO_FILE_SIZE_IN_BYTES = 5 * 1024 * 1024;

@@ -18,7 +18,9 @@ export const modeConfig = {
 
 
 export type WordCardWithInteractions = Prisma.WordCardGetPayload<{
-  include: { interactions: true }
+  include: { interactions: true,
+             topics: true
+   };
 }>;
 
 export type YandexGPTRole = 'system' | 'user' | 'assistant';

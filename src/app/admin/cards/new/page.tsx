@@ -1,5 +1,9 @@
+import { getAllTopics } from "@/actions/actions";
 import AdminCardForm from "@/components/AdminCardForm";
 
 export default async function NewWordCard() {
-    return <AdminCardForm mode="create" />
+    const allTopics = await getAllTopics();
+
+    return <AdminCardForm mode="create"
+                          allTopics={allTopics} />
 }

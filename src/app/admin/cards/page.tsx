@@ -58,6 +58,7 @@ export default async function WordCardsPage() {
               <TableHead className="min-w-[300px]">Значение</TableHead>
               <TableHead className="min-w-[350px]">Примеры</TableHead>
               <TableHead className="min-w-[130px]">Часть речи</TableHead>
+              <TableHead className="min-w-[180px]">Топики</TableHead>
               <TableHead className="sticky right-0 bg-background border-l text-center w-32 shadow-[-2px_0_5px_rgba(0,0,0,0.02)]">
                 Действия
               </TableHead>
@@ -68,25 +69,31 @@ export default async function WordCardsPage() {
             {cards.map((card) => (
               <TableRow key={card.id}>
                 <TableCell className="text-muted-foreground">{card.id}</TableCell>
+
                 <TableCell className="font-bold text-foreground text-base">
                   {card.word}
                 </TableCell>
+
                 <TableCell className="font-mono text-muted-foreground">
                   {card.transcription}
                 </TableCell>
+
                 <TableCell className="max-w-xs whitespace-normal leading-relaxed">
                   {card.translation?.join(', ') || ''}
                 </TableCell>
+
                 <TableCell className="max-w-sm whitespace-normal text-muted-foreground leading-relaxed">
                   {card.meaning?.map((m, i) => (
                     <div key={i} className="mb-1 last:mb-0">• {m}</div>
                   )) || ''}
                 </TableCell>
+
                 <TableCell className="max-w-md whitespace-normal text-muted-foreground/90 italic leading-relaxed">
                   {card.examples?.map((ex, i) => (
                     <div key={i} className="mb-1 last:mb-0">«{ex}»</div>
                   )) || ''}
                 </TableCell>
+
                 <TableCell className="max-w-sm whitespace-normal">
                   <div className="flex flex-wrap gap-1.5">
                     {card.partsOfSpeech?.map((pos) => (
@@ -96,6 +103,21 @@ export default async function WordCardsPage() {
                     )) || ''}
                   </div>
                 </TableCell>
+
+                <TableCell className="max-w-xs whitespace-normal">
+                  <div className="flex flex-wrap gap-1.5">
+                    {card.topics && card.topics.length > 0 ? (
+                      card.topics.map((topic) => (
+                        <Badge key={topic.id} variant="outline" className="capitalize font-normal text-xs bg-primary/5 text-primary border-primary/20">
+                          {topic.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground/40 text-xs">—</span>
+                    )}
+                  </div>
+                </TableCell>
+                
                 <TableCell className="sticky right-0 bg-background border-l text-center shadow-[-2px_0_5px_rgba(0,0,0,0.02)]">
                   <div className="flex items-center justify-center gap-2">
                     <Button variant="outline" size="sm" className="gap-1.5" asChild>

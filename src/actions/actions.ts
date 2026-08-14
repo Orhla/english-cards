@@ -5,8 +5,11 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ERROR_CARDS_NUMBER, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
+import { ALLOWED_AUDIO_TYPES, AUDIO_DIR, ERROR_CARDS_NUMBER, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
+import { logger } from "@/lib/logger";
+import { access, writeFile } from "fs/promises";
+import path from "path";
 
 type ActionGetCardsStatus =
     | { success: true, data: WordCardWithInteractions[] }
@@ -30,32 +33,52 @@ export async function getAllEnglishCards(userId?: string): Promise<ActionGetCard
     }
 }
 
-export async function wordCardFormAction(prevState: unknown, formData: FormData): Promise<{ error?: string } | null> {
-    await requireAdmin();
-    const id = formData.get("id")?.toString();
-    const word = formData.get("word")?.toString().trim() ?? "";
-    const transcription = formData.get("transcription")?.toString().trim() ?? "";
-    const translation = formData.getAll("translation").map(String).filter(Boolean);
-    const meaning = formData.getAll("meaning").map(String).filter(Boolean);
-    const examples = formData.getAll("example").map(String).filter(Boolean);
-    const partsOfSpeech = formData.getAll("partsOfSpeech").map(String) as partOfSpeech[];
+export type WordCardFormPayload = {
+    id?: string
+    word: string
+    transcription: string
+    translation: string[]
+    meaning: string[]
+    example: string[]
+    partsOfSpeech: partOfSpeech[]
+    topics: string[]
+    audio?: File
+}
 
-    const audioFile = formData.get("audio") as File | null;
-    if (audioFile && audioFile.size > 0) {
-        console.log("audio file:", audioFile.name, "size:", audioFile.size, "bytes");
+export async function wordCardFormAction(prevState: unknown, data: WordCardFormPayload): Promise<{ error?: string } | null> {
+    const session = await requireAdmin();
+    logger.info("Форма сохранения карточки отправлена", {
+        component: "wordCardFormAction",
+        userId: session.user.id
+    });
+
+    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audio } = data;
+
+    if (audio && audio.size > 0) {
+        logger.info("Информация об аудио файле: ", { component: "wordCardFormAction", audio_file_name: audio.name, size: audio.size });
+        await saveAudioFile(word, audio);
     } else {
-        console.log("audio file: not provided");
+        logger.info("Аудио файл отсутствует", { component: "wordCardFormAction" });
     }
 
     try {
         if (id) {
             await prisma.wordCard.update({
                 where: { id: Number(id) },
-                data: { word, transcription, translation, meaning, examples, partsOfSpeech },
+                data: { word, transcription, translation, meaning, examples: example, partsOfSpeech,
+                        topics: {
+                            set: [],
+                            connect: topics.map((topicName) => ({ name: topicName })),
+                        },
+                },
             });
         } else {
             await prisma.wordCard.create({
-                data: { word, transcription, translation, meaning, examples, partsOfSpeech },
+                data: { word, transcription, translation, meaning, examples: example, partsOfSpeech,
+                        topics: {
+                            connect: topics.map((topicName) => ({ name: topicName })),
+                        },
+                },
             });
         }
     } catch (error) {
@@ -67,7 +90,14 @@ export async function wordCardFormAction(prevState: unknown, formData: FormData)
 
 
 export async function updateWordCard(card: WordCard) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  logger.info("Карточка слова обновлена", {
+        component: "updateWordCard",
+        userId: session.user.id,
+        cardId: card.id,
+        cardWord: card.word
+    });
+
   try {
     await prisma.wordCard.update({
       where: { id: card.id },
@@ -83,14 +113,20 @@ export async function updateWordCard(card: WordCard) {
 
     return { success: true };
   } catch (error) {
-        console.error("Ошибка при обновлении карточки:", error);
+        logger.error("Ошибка при обновлении карточки", {"component": "updateWordCard", "error": `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось сохранить изменения: ${error instanceof Error ? error.message : error}` };
   }
 }
 
 
 export async function deleteWordCard(cardId: number) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  logger.info("Слово удалено", {
+        component: "deleteWordCard",
+        userId: session.user.id,
+        cardId: cardId,
+    });
+
   try {
     await prisma.wordCard.delete({
       where: { id: cardId },
@@ -98,14 +134,20 @@ export async function deleteWordCard(cardId: number) {
 
     return { success: true };
   } catch (error) {
-        console.error("Ошибка при удалении карточки:", error);
+        logger.error("Ошибка при удалении карточки", {"component": "deleteWordCard", "error": `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось удалить карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
 
 
 export async function createWordCard(card: Omit<WordCard, 'id'>) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  logger.info("Карточка слова создана", {
+        component: "createWordCard",
+        userId: session.user.id,
+        cardWord: card.word,
+    });
+
   let isSuccess = false;
   try {
     await prisma.wordCard.create({
@@ -120,7 +162,7 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
     });
     isSuccess = true;
   } catch (error) {
-        console.error("Ошибка при создании карточки:", error);
+        logger.error("Ошибка при создании карточки", {"component": "createWordCard", "error": `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось создать карточку: ${error instanceof Error ? error.message : error}` };
   }
 
@@ -133,6 +175,12 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
 export async function likeCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
+  logger.info("Нажата кнопка лайка", {
+        component: "likeCard",
+        userId: userId,
+        cardId: cardId,
+    });
+
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -142,7 +190,7 @@ export async function likeCard(cardId: number, nextState: boolean) {
     revalidatePath("/practice");
     return { success: true };
   } catch (error) {
-      console.error("Ошибка при лайке карточки:", error);
+      logger.error("Ошибка при лайке карточки", {"component": "likeCard", "error": `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Не удалось лайкнуть карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -151,6 +199,12 @@ export async function likeCard(cardId: number, nextState: boolean) {
 export async function ignoreCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
+  logger.info("Нажата кнопка игнора", {
+        component: "ignoreCard",
+        userId: userId,
+        cardId: cardId,
+    });
+
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -160,7 +214,7 @@ export async function ignoreCard(cardId: number, nextState: boolean) {
     revalidatePath("/practice");
     return { success: true };
   } catch (error) {
-      console.error("Ошибка при добавлении карточки в игнор:", error);
+      logger.error("Ошибка при добавлении карточки в игнор", {"component": "ignoreCard", "error": `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Не удалось добавить карточку в игнор: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -169,6 +223,12 @@ export async function ignoreCard(cardId: number, nextState: boolean) {
 export async function recordAnswer(cardId: number, isCorrect: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
+  logger.info("Нажата кнопка записи голоса в режиме Практика", {
+        component: "ignoreCard",
+        userId: userId,
+        cardId: cardId,
+    });
+
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -181,7 +241,7 @@ export async function recordAnswer(cardId: number, isCorrect: boolean) {
     });
     return { success: true };
   } catch (error) {
-      console.error("Ошибка при обновлении статистики правильных ответов:", error);
+      logger.error("Ошибка при обновлении статистики правильных ответов", {"component": "recordAnswer", "error": `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Ошибка при обновлении статистики правильных ответов: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -214,7 +274,8 @@ export async function getCardsForPractice(userId: string, limit: number = 10): P
           include: {
             interactions: {
               where: { userId } 
-            }
+            },
+            topics: true,
           }
         }
       },
@@ -234,7 +295,8 @@ export async function getCardsForPractice(userId: string, limit: number = 10): P
         include: {
           interactions: {
             where: { userId }
-          }
+          },
+          topics: true,
         },
         orderBy: { id: 'asc' },
         take: newCardsNumber,
@@ -302,7 +364,42 @@ export async function getAllTopics(): Promise<string[]> {
       cache = { value: allTopicsArray, expiresAt: Date.now() + CACHE_TTL_MS }
       return allTopicsArray;
   } catch (error) {
-      console.error(error instanceof Error ? error.message : "Не удалось получить названия топиков. Попробуйте позже.")
+      logger.error("Ошибка при получении названий топиков", {"component": "getAllTopics", "error": `${error instanceof Error ? error.message : error}`});
       return ["other"];
   }
+}
+
+
+export async function saveAudioFile(word: string, file: File): Promise<void> {
+    if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
+      logger.error("Аудио файл имеет неверный формат", {"component": "saveAudioFile", "type": file.type});
+      throw new Error(`Аудио файл имеет неверный формат: ${file.type}`);
+    } 
+    
+    if (file.size > MAX_AUDIO_FILE_SIZE_IN_BYTES) {
+      logger.error("Размер аудио файла превышает допустимый", {"component": "saveAudioFile", "type": file.size});
+      throw new Error(`Размер аудио файла превышает допустимый: ${file.size} > ${MAX_AUDIO_FILE_SIZE_IN_BYTES}`);
+    }
+
+    const fileExt = path.extname(file.name);
+    const audioPath = path.join(AUDIO_DIR, `${word}${fileExt}`);
+    try {
+        await access(audioPath);
+        return;
+    } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
+            logger.error("Нет доступа к папке с аудио файлами", {"component": "saveAudioFile", "error": `${error instanceof Error ? error.message : error}`});
+            throw new Error(`Нет доступа к папке с аудио файлами: ${error instanceof Error ? error.message : error}`);
+        }
+    }
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        await writeFile(audioPath, buffer);
+    } catch (error) {
+        logger.error("Ошибка при сохранении аудио файла", {"component": "saveAudioFile", "error": `${error instanceof Error ? error.message : error}`});
+        throw new Error(`Ошибка при сохранении аудио файла: ${error instanceof Error ? error.message : error}`);
+    }
 }

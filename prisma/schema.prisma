@@ -58,7 +58,7 @@ enum wordLevel {
 
 model Topic {
   id            Int            @id @default(autoincrement())
-  name          String
+  name          String         @unique
   words         WordCard[]
 }
 

@@ -2,6 +2,7 @@ import { getAllTopics } from "@/actions/actions";
 import { z } from "zod"
 import { callYandexLLM } from "@/lib/yandex/provider";
 import { FOLDER_ID } from "@/lib/consts";
+import { logger } from "@/lib/logger";
 
 const generateYandexLLMRole = `Ты помощник для создания обучающих карточек английского языка.`
 
@@ -22,7 +23,12 @@ const generateYandexLLMPrompt = (word: string, availableTopics: string[]) => `П
 - topics: Выбери для слова ${word} от 1 до 3 категорий СТРОГО из этого списка: [${availableTopics.join(", ")}]. Использование тем не из списка запрещено.`
 
 
-export type WordCardEnrichment = z.infer<typeof WordCardEnrichmentSchema>
+export type WordCardEnrichment = {
+    meanings: string[];
+    examples: string[];
+    level: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+    topics: string[];
+}
 
 export type WordEnrichmentStatus =
     | { success: true, data: WordCardEnrichment }
@@ -58,6 +64,7 @@ export async function wordCardEnrichmentAgent(word: string): Promise<WordEnrichm
     try {
         const jsonResult = JSON.parse(jsonTextResult);
         const result = WordCardEnrichmentSchema.parse(jsonResult);
+
         return { success: true, data: result };
     } catch (error) {
         return {success: false, message: error instanceof z.ZodError || error instanceof Error ? error.message : "Ошибка при парсинге ответа от LLM."};
