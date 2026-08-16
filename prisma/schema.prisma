@@ -21,7 +21,7 @@ enum role {
 
 model WordCard {
   id            Int            @id @default(autoincrement())
-  word          String
+  word          String         @unique
   partsOfSpeech partOfSpeech[]
   // 1. надо поле для аудио, кстати. Аудио - во первых надо создать с помошью ТТС, а во вторых - как-то хранить. Оба технических челленджа надо сделать.
   transcription String
@@ -31,6 +31,8 @@ model WordCard {
   examples      String[]
   level         wordLevel?
   topics        Topic[]
+  audioPath     String?
+  imagePath     String?
 
   interactions UserCardInteraction[]
 }

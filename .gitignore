@@ -47,3 +47,6 @@ next-env.d.ts
 
 # generated audio files
 /public/audio/
+
+# added image files
+/public/image/
