@@ -26,5 +26,5 @@ async function getEnglishAudioFiles() {
 try {
     await getEnglishAudioFiles();
 } catch (error) {
-    logger.error("Ошибка при генерации аудио файлов", {"component": "getEnglishAudioFiles", "error": `${error instanceof Error ? error.message : error}`});
+    logger.error("Ошибка при генерации аудио файлов", {function: "getEnglishAudioFiles", error: `${error instanceof Error ? error.message : error}`});
 }

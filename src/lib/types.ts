@@ -37,7 +37,7 @@ export type YandexGPTRequest = {
     temperature: number
   },
   messages: YandexGPTMessage[],
-  jsonSchema: {
+  json_schema: {
     schema: object
   }
 }

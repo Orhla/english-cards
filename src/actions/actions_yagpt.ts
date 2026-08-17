@@ -9,7 +9,7 @@ export async function enrichWordCard(word: string): Promise<WordCardEnrichment> 
     if (!enrichedWordStatus.success) {
         throw new Error(enrichedWordStatus.message);
     }
-    logger.debug("Результат выполнения enrichedWordStatus", {"component": "enrichWordCard", "data": enrichedWordStatus })
+    logger.debug("Результат выполнения enrichedWordStatus", {function: "enrichWordCard", data: enrichedWordStatus })
     
     return enrichedWordStatus.data;
 }

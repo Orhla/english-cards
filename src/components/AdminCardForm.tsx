@@ -4,7 +4,7 @@ import { startTransition, useActionState, useState } from "react"
 import { useForm, useFieldArray, FormProvider } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { wordCardFormAction, WordCardFormPayload } from "@/actions/actions"
+import { generateWordAudio, wordCardFormAction, WordCardFormPayload } from "@/actions/actions"
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser"
 import { Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,8 @@ const FormSchema = z.object({
     word: z.string().min(1, "Введите слово"),
     transcription: z.string().optional(),
     audio: z.any().optional(),
-    partsOfSpeech: z.array(z.nativeEnum(partOfSpeech)),
+    image: z.any().optional(),
+    partsOfSpeech: z.array(z.enum(partOfSpeech)),
     translation: z.array(z.object({ value: z.string() })),
     meaning: z.array(z.object({ value: z.string() })),
     example: z.array(z.object({ value: z.string() })),
@@ -70,6 +71,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
     const selectedTopics = watch("topics")
 
     const [autoFillError, setAutoFillError] = useState<string | null>(null)
+    const [audioAutoFillError, setAudioAutoFillError] = useState<string | null>(null)
 
     const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault()
@@ -113,6 +115,21 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         }
     }
 
+    const handleAudioAutofill = async(e: React.MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        setAudioAutoFillError(null);
+        const wordValue = getValues("word").trim()
+        if (!wordValue) { alert("Сначала введите слово"); return }
+
+        try {
+            const audioFilePath = await generateWordAudio(wordValue);
+            setAudioAutoFillError("Успех!");
+        } catch (error) {
+            setAudioAutoFillError(error instanceof Error ? error.message : "Ошибка при автогенерации аудио")
+            console.error("Ошибка при автогенерации аудио:", error instanceof Error ? error.message : "")
+        }
+    }
+
     const onSubmit = handleSubmit((data) => {
         const payload: WordCardFormPayload = {
             id: isEditMode ? String(card?.id) : undefined,
@@ -124,6 +141,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             partsOfSpeech: data.partsOfSpeech,
             topics: data.topics,
             audio: (data.audio as FileList | undefined)?.[0],
+            image: (data.image as FileList | undefined)?.[0],
         }
         startTransition(() => formAction(payload))
     })
@@ -179,9 +197,37 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                         {/* Аудиофайл */}
                         <div className="space-y-1.5">
                             <label htmlFor="audio" className="text-sm font-medium text-foreground">Аудиофайл</label>
-                            <Input id="audio" {...register("audio")}
+
+                            <div className="flex items-start gap-2">
+                                <Input id="audio" {...register("audio")}
+                                    type="file"
+                                    accept="audio/*"
+                                    disabled={isPending} />
+
+                                {isEditMode && (
+                                    <div className="flex flex-col gap-1 shrink-0">
+                                        <button type="button"
+                                                disabled={isPending}
+                                                className="px-2 py-1 text-xs font-medium border rounded bg-background hover:bg-accent text-accent-foreground disabled:opacity-50 transition-colors"
+                                                onClick={handleAudioAutofill}>
+                                            Сгенерировать аудио
+                                        </button>
+                                    </div> )}
+                            </div>
+
+                            {isEditMode && audioAutoFillError && (
+                                <p className="text-sm text-destructive">
+                                    {audioAutoFillError}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Изображение */}
+                        <div className="space-y-1.5">
+                            <label htmlFor="image" className="text-sm font-medium text-foreground">Изображение</label>
+                            <Input id="image" {...register("image")}
                                 type="file"
-                                accept="audio/*"
+                                accept="image/*"
                                 disabled={isPending} />
                         </div>
 

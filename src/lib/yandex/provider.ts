@@ -1,5 +1,6 @@
 import { FOLDER_ID, YANDEX_LLM_API_KEY, YANDEX_LLM_BASE_URL } from "@/lib/consts";
 import { withRetry } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 export class YandexApiError extends Error {
     constructor(public readonly status: number, message: string) {
@@ -18,7 +19,7 @@ export class YandexApiNonRetryableError extends YandexApiError {
 export async function callYandexLLM(params: {
             modelUri: string
             messages: { role: "system" | "user"; text: string }[]
-            jsonSchema?: object
+            json_schema?: object
             completionOptions?: object}): Promise<string> {
     if (!YANDEX_LLM_API_KEY) {
         throw new Error("YANDEX_LLM_API_KEY пустой или не найден");
@@ -27,6 +28,8 @@ export async function callYandexLLM(params: {
     if (!FOLDER_ID) {
         throw new Error("FOLDER_ID пустой или не найден");
     }
+
+    logger.debug("params", {params: params});
 
     const response = await withRetry(async () => {
         const responseTry = await fetch(YANDEX_LLM_BASE_URL, {

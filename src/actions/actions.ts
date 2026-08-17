@@ -5,11 +5,14 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ALLOWED_AUDIO_TYPES, AUDIO_DIR, ERROR_CARDS_NUMBER, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
+import { ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, AUDIO_DIR, ERROR_CARDS_NUMBER, IMAGE_DIR, LANGUAGES, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MAX_IMAGE_FILE_SIZE_IN_BYTES, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
 import { access, writeFile } from "fs/promises";
 import path from "path";
+import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
+
+const actionLogger = logger.child({component: "actions.ts"})
 
 type ActionGetCardsStatus =
     | { success: true, data: WordCardWithInteractions[] }
@@ -43,29 +46,42 @@ export type WordCardFormPayload = {
     partsOfSpeech: partOfSpeech[]
     topics: string[]
     audio?: File
+    image?: File
 }
 
 export async function wordCardFormAction(prevState: unknown, data: WordCardFormPayload): Promise<{ error?: string } | null> {
     const session = await requireAdmin();
-    logger.info("Форма сохранения карточки отправлена", {
-        component: "wordCardFormAction",
-        userId: session.user.id
-    });
-
-    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audio } = data;
+    
+    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audio, image } = data;
+    let savedAudioPath: string | undefined = undefined;
+    let savedImagePath: string | undefined = undefined;
 
     if (audio && audio.size > 0) {
-        logger.info("Информация об аудио файле: ", { component: "wordCardFormAction", audio_file_name: audio.name, size: audio.size });
-        await saveAudioFile(word, audio);
+        actionLogger.debug("Информация об аудио файле: ", { function: "wordCardFormAction", audio_file_name: audio.name, size: audio.size });
+        savedAudioPath = await saveAudioFile(word, audio);
     } else {
-        logger.info("Аудио файл отсутствует", { component: "wordCardFormAction" });
+        actionLogger.debug("Аудио файл отсутствует", { function: "wordCardFormAction" });
+    }
+
+    if (image && image.size > 0) {
+        actionLogger.debug("Информация об изображении: ", { function: "wordCardFormAction", image_file_name: image.name, size: image.size });
+        savedImagePath = await saveImageFile(word, image);
+    } else {
+        actionLogger.debug("Изображение отсутствует", { function: "wordCardFormAction" });
     }
 
     try {
         if (id) {
             await prisma.wordCard.update({
                 where: { id: Number(id) },
-                data: { word, transcription, translation, meaning, examples: example, partsOfSpeech,
+                data: { word, 
+                        transcription,
+                        translation, 
+                        meaning, 
+                        examples: example, 
+                        partsOfSpeech,
+                        ...(savedAudioPath && { audioPath: savedAudioPath }),
+                        ...(savedImagePath && {imagePath: savedImagePath}),
                         topics: {
                             set: [],
                             connect: topics.map((topicName) => ({ name: topicName })),
@@ -74,13 +90,25 @@ export async function wordCardFormAction(prevState: unknown, data: WordCardFormP
             });
         } else {
             await prisma.wordCard.create({
-                data: { word, transcription, translation, meaning, examples: example, partsOfSpeech,
+                data: { word,
+                        transcription,
+                        translation,
+                        meaning,
+                        examples: example,
+                        partsOfSpeech,
+                        audioPath: savedAudioPath,
+                        imagePath: savedImagePath,
                         topics: {
                             connect: topics.map((topicName) => ({ name: topicName })),
                         },
                 },
             });
         }
+
+        actionLogger.debug("Форма сохранения карточки отправлена", {
+            function: "wordCardFormAction",
+            userId: session.user.id
+        });
     } catch (error) {
         return { error: error instanceof Error ? error.message : "Не удалось сохранить карточку" };
     }
@@ -91,13 +119,7 @@ export async function wordCardFormAction(prevState: unknown, data: WordCardFormP
 
 export async function updateWordCard(card: WordCard) {
   const session = await requireAdmin();
-  logger.info("Карточка слова обновлена", {
-        component: "updateWordCard",
-        userId: session.user.id,
-        cardId: card.id,
-        cardWord: card.word
-    });
-
+  
   try {
     await prisma.wordCard.update({
       where: { id: card.id },
@@ -110,10 +132,16 @@ export async function updateWordCard(card: WordCard) {
         examples: card.examples,
       },
     });
+    actionLogger.debug("Карточка слова обновлена", {
+        function: "updateWordCard",
+        userId: session.user.id,
+        cardId: card.id,
+        cardWord: card.word
+    });
 
     return { success: true };
   } catch (error) {
-        logger.error("Ошибка при обновлении карточки", {"component": "updateWordCard", "error": `${error instanceof Error ? error.message : error}`});
+        actionLogger.error("Ошибка при обновлении карточки", {function: "updateWordCard", error: `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось сохранить изменения: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -121,20 +149,20 @@ export async function updateWordCard(card: WordCard) {
 
 export async function deleteWordCard(cardId: number) {
   const session = await requireAdmin();
-  logger.info("Слово удалено", {
-        component: "deleteWordCard",
-        userId: session.user.id,
-        cardId: cardId,
-    });
-
+  
   try {
     await prisma.wordCard.delete({
       where: { id: cardId },
     });
+    actionLogger.debug("Карточка удалена", {
+        function: "deleteWordCard",
+        userId: session.user.id,
+        cardId: cardId,
+    });
 
     return { success: true };
   } catch (error) {
-        logger.error("Ошибка при удалении карточки", {"component": "deleteWordCard", "error": `${error instanceof Error ? error.message : error}`});
+        actionLogger.error("Ошибка при удалении карточки", {function: "deleteWordCard", error: `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось удалить карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -142,12 +170,7 @@ export async function deleteWordCard(cardId: number) {
 
 export async function createWordCard(card: Omit<WordCard, 'id'>) {
   const session = await requireAdmin();
-  logger.info("Карточка слова создана", {
-        component: "createWordCard",
-        userId: session.user.id,
-        cardWord: card.word,
-    });
-
+  
   let isSuccess = false;
   try {
     await prisma.wordCard.create({
@@ -161,8 +184,13 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
       },
     });
     isSuccess = true;
+    actionLogger.debug("Карточка слова создана", {
+        function: "createWordCard",
+        userId: session.user.id,
+        cardWord: card.word,
+    });
   } catch (error) {
-        logger.error("Ошибка при создании карточки", {"component": "createWordCard", "error": `${error instanceof Error ? error.message : error}`});
+        actionLogger.error("Ошибка при создании карточки", {function: "createWordCard", error: `${error instanceof Error ? error.message : error}`});
         return { success: false, error: `Не удалось создать карточку: ${error instanceof Error ? error.message : error}` };
   }
 
@@ -175,22 +203,22 @@ export async function createWordCard(card: Omit<WordCard, 'id'>) {
 export async function likeCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
-  logger.info("Нажата кнопка лайка", {
-        component: "likeCard",
-        userId: userId,
-        cardId: cardId,
-    });
-
+  
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
         create: { userId, cardId, liked: true },
         update: { liked: nextState },
     });
+    actionLogger.debug("Нажата кнопка лайка", {
+        function: "likeCard",
+        userId: userId,
+        cardId: cardId,
+    });
     revalidatePath("/practice");
     return { success: true };
   } catch (error) {
-      logger.error("Ошибка при лайке карточки", {"component": "likeCard", "error": `${error instanceof Error ? error.message : error}`});
+      actionLogger.error("Ошибка при лайке карточки", {function: "likeCard", error: `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Не удалось лайкнуть карточку: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -199,22 +227,22 @@ export async function likeCard(cardId: number, nextState: boolean) {
 export async function ignoreCard(cardId: number, nextState: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
-  logger.info("Нажата кнопка игнора", {
-        component: "ignoreCard",
-        userId: userId,
-        cardId: cardId,
-    });
-
+  
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
         create: { userId, cardId, ignored: true },
         update: { ignored: nextState },
     });
+    actionLogger.debug("Нажата кнопка игнора", {
+        function: "ignoreCard",
+        userId: userId,
+        cardId: cardId,
+    });
     revalidatePath("/practice");
     return { success: true };
   } catch (error) {
-      logger.error("Ошибка при добавлении карточки в игнор", {"component": "ignoreCard", "error": `${error instanceof Error ? error.message : error}`});
+      actionLogger.error("Ошибка при добавлении карточки в игнор", {function: "ignoreCard", error: `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Не удалось добавить карточку в игнор: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -223,12 +251,7 @@ export async function ignoreCard(cardId: number, nextState: boolean) {
 export async function recordAnswer(cardId: number, isCorrect: boolean) {
   const session = await requireLogin();
   const userId = session.user.id;
-  logger.info("Нажата кнопка записи голоса в режиме Практика", {
-        component: "ignoreCard",
-        userId: userId,
-        cardId: cardId,
-    });
-
+  
   try {
     await prisma.userCardInteraction.upsert({
         where: { userId_cardId: { userId, cardId } },
@@ -239,9 +262,14 @@ export async function recordAnswer(cardId: number, isCorrect: boolean) {
         update: { [isCorrect ? 'correctCount' : 'incorrectCount']: { increment: 1 },
                   lastSeenAt: new Date() },
     });
+    actionLogger.debug("Нажата кнопка записи голоса в режиме Практика", {
+        function: "recordAnswer",
+        userId: userId,
+        cardId: cardId,
+    });
     return { success: true };
   } catch (error) {
-      logger.error("Ошибка при обновлении статистики правильных ответов", {"component": "recordAnswer", "error": `${error instanceof Error ? error.message : error}`});
+      actionLogger.error("Ошибка при обновлении статистики правильных ответов", {function: "recordAnswer", error: `${error instanceof Error ? error.message : error}`});
       return { success: false, error: `Ошибка при обновлении статистики правильных ответов: ${error instanceof Error ? error.message : error}` };
   }
 }
@@ -364,31 +392,31 @@ export async function getAllTopics(): Promise<string[]> {
       cache = { value: allTopicsArray, expiresAt: Date.now() + CACHE_TTL_MS }
       return allTopicsArray;
   } catch (error) {
-      logger.error("Ошибка при получении названий топиков", {"component": "getAllTopics", "error": `${error instanceof Error ? error.message : error}`});
+      actionLogger.error("Ошибка при получении названий топиков", {function: "getAllTopics", error: `${error instanceof Error ? error.message : error}`});
       return ["other"];
   }
 }
 
 
-export async function saveAudioFile(word: string, file: File): Promise<void> {
+export async function saveAudioFile(word: string, file: File): Promise<string> {
     if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
-      logger.error("Аудио файл имеет неверный формат", {"component": "saveAudioFile", "type": file.type});
+      actionLogger.warn("Аудио файл имеет неверный формат", {function: "saveAudioFile", type: file.type});
       throw new Error(`Аудио файл имеет неверный формат: ${file.type}`);
     } 
     
     if (file.size > MAX_AUDIO_FILE_SIZE_IN_BYTES) {
-      logger.error("Размер аудио файла превышает допустимый", {"component": "saveAudioFile", "type": file.size});
+      actionLogger.warn("Размер аудио файла превышает допустимый", {function: "saveAudioFile", type: file.size});
       throw new Error(`Размер аудио файла превышает допустимый: ${file.size} > ${MAX_AUDIO_FILE_SIZE_IN_BYTES}`);
     }
 
-    const fileExt = path.extname(file.name);
-    const audioPath = path.join(AUDIO_DIR, `${word}${fileExt}`);
+    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
+    const audioPath = path.join(AUDIO_DIR, `${safeWord}.ogg`);
     try {
         await access(audioPath);
-        return;
+        return audioPath;
     } catch (error) {
         if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-            logger.error("Нет доступа к папке с аудио файлами", {"component": "saveAudioFile", "error": `${error instanceof Error ? error.message : error}`});
+            actionLogger.error("Нет доступа к папке с аудио файлами", {function: "saveAudioFile", error: `${error instanceof Error ? error.message : error}`});
             throw new Error(`Нет доступа к папке с аудио файлами: ${error instanceof Error ? error.message : error}`);
         }
     }
@@ -398,8 +426,74 @@ export async function saveAudioFile(word: string, file: File): Promise<void> {
         const buffer = Buffer.from(arrayBuffer);
 
         await writeFile(audioPath, buffer);
+        return audioPath;
     } catch (error) {
-        logger.error("Ошибка при сохранении аудио файла", {"component": "saveAudioFile", "error": `${error instanceof Error ? error.message : error}`});
+        actionLogger.error("Ошибка при сохранении аудио файла", {function: "saveAudioFile", error: `${error instanceof Error ? error.message : error}`});
         throw new Error(`Ошибка при сохранении аудио файла: ${error instanceof Error ? error.message : error}`);
     }
+}
+
+
+export async function saveImageFile(word: string, file: File): Promise<string> {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      actionLogger.warn("Изображение имеет неверный формат", {function: "saveImageFile", type: file.type});
+      throw new Error(`Изображение имеет неверный формат: ${file.type}`);
+    } 
+    
+    if (file.size > MAX_IMAGE_FILE_SIZE_IN_BYTES) {
+      actionLogger.warn("Размер изображения превышает допустимый", {function: "saveImageFile", type: file.size});
+      throw new Error(`Размер изображения превышает допустимый: ${file.size} > ${MAX_IMAGE_FILE_SIZE_IN_BYTES}`);
+    }
+
+    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
+    const imagePath = path.join(IMAGE_DIR, `${safeWord}.webp`);
+    try {
+        await access(imagePath);
+        return imagePath;
+    } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
+            actionLogger.error("Нет доступа к папке с изображениями", {function: "saveImageFile", error: `${error instanceof Error ? error.message : error}`});
+            throw new Error(`Нет доступа к папке с изображениями: ${error instanceof Error ? error.message : error}`);
+        }
+    }
+
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        await writeFile(imagePath, buffer);
+        return imagePath;
+    } catch (error) {
+        actionLogger.error("Ошибка при сохранении изображения", {function: "saveImageFile", error: `${error instanceof Error ? error.message : error}`});
+        throw new Error(`Ошибка при сохранении изображения: ${error instanceof Error ? error.message : error}`);
+    }
+}
+
+
+export async function generateWordAudio(word: string): Promise<{audioPath: string}> {
+  try {
+    const card = await prisma.wordCard.findUniqueOrThrow({
+      where: { word }
+    });
+    await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
+
+    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
+    const audioPath = path.join(AUDIO_DIR, `${safeWord}.ogg`);
+
+    try {
+      await prisma.wordCard.update({
+        where: { id: card.id },
+        data: {
+          audioPath: audioPath
+        },
+      });
+    } catch (error) {
+      actionLogger.error("Не удалось обновить карточку", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
+      throw new Error(`Не удалось обновить карточку: ${error instanceof Error ? error.message : error}`);
+    }
+    return {audioPath};
+  } catch (error) {
+    actionLogger.warn("Карточка со словом не найдена", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
+    throw new Error(`Карточка со словом не найдена: ${error instanceof Error ? error.message : error}`);
+  }
 }

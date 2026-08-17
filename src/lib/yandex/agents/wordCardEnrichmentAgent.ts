@@ -2,19 +2,10 @@ import { getAllTopics } from "@/actions/actions";
 import { z } from "zod"
 import { callYandexLLM } from "@/lib/yandex/provider";
 import { FOLDER_ID } from "@/lib/consts";
-import { logger } from "@/lib/logger";
 
 const generateYandexLLMRole = `Ты помощник для создания обучающих карточек английского языка.`
 
 const generateYandexLLMPrompt = (word: string, availableTopics: string[]) => `Проанализируй английское слово: "${word}"
-
-Верни JSON в точно таком формате:
-{
-  "meanings": ["определение 1 на английском", "определение 2 на английском"],
-  "examples": ["Example sentence 1.", "Example sentence 2.", "Example sentence 3."],
-  "level": "B1",
-  "topics": ["work", "communication"]
-}
 
 Правила:
 - meanings: Напиши от 1 до 3 коротких, понятных определений слова "${word}" на английском языке.
@@ -56,8 +47,8 @@ export async function wordCardEnrichmentAgent(word: string): Promise<WordEnrichm
                     { role: "system", text: generateYandexLLMRole },
                     { role: "user", text: generateYandexLLMPrompt(word, allTopics) }
                 ],
-                jsonSchema: {
-                    schema: WordCardEnrichmentSchema
+                json_schema: {
+                    schema: z.toJSONSchema(WordCardEnrichmentSchema)
                 }
             })
 
