@@ -319,6 +319,100 @@ Route handler `GET /api/cron/cleanup-files`:
 
 ---
 
+## Блок Е — (опционально) Переиспользуемый компонент файл-пикера
+
+**Делать только после того, как блоки Б–Г работают на двух отдельных инпутах.** Сначала прочувствуй боль от дублирования (два `<input>`, два `handle*Change`, два блока loading/error, два куска JSX со списком) — тогда будет понятно, что именно выносим и зачем.
+
+Идея: один компонент `<FilePicker>`, который умеет и аудио, и картинки. Разница между ними — это **пропсы**, а не отдельный код.
+
+### Е1 — Контракт компонента
+
+```tsx
+type UploadedFile = { id: string; originalName: string }
+
+type FilePickerProps = {
+  label: string
+  businessType: "audio" | "image"
+  accept: string                       // "audio/*" | "image/*"
+  multiple?: boolean                   // ← вот ради этого всё и затевается
+  value: UploadedFile[]                // всегда массив, даже для одиночного аудио
+  onChange: (files: UploadedFile[]) => void
+}
+```
+
+Про `multiple`: ты пока не решила, одно у слова аудио или несколько. С переиспользуемым компонентом это перестаёт быть проблемой формы — `<FilePicker businessType="audio" />` (одиночный) или `<FilePicker businessType="audio" multiple />` (несколько), решение меняется одним пропом, код компонента один и тот же. Поэтому `value` — всегда `UploadedFile[]`; «одиночность» аудио — это просто `multiple={false}` + «в массиве максимум один элемент».
+
+### Е2 — Что внутри компонента
+
+Компонент владеет:
+- своим `<input type="file">` (uncontrolled, только `onChange`);
+- своим состоянием `isUploading` / `error` (наружу не торчит — это деталь компонента);
+- логикой «выбрал файлы → `uploadFile` каждый → собрал `UploadedFile[]` → отдал через `onChange`».
+
+Компонент **не владеет**: списком прикреплённого (это `value` из пропсов), связью с карточкой, сабмитом.
+
+Набросок (дозаполни сама — валидация ответа сервиса, спиннер, `disabled`, кнопка «убрать» у каждого файла, `e.target.value = ""` после загрузки):
+
+```tsx
+export function FilePicker({ label, businessType, accept, multiple, value, onChange }: FilePickerProps) {
+  const [isUploading, setIsUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files?.length) return
+    setIsUploading(true)
+    setError(null)
+    try {
+      const uploaded = await Promise.all(
+        Array.from(files).map((f) => uploadFile(f, businessType))
+      )
+      // TODO: если сервис вернул { error } — показать, не добавлять
+      const next = multiple ? [...value, ...uploaded] : uploaded.slice(0, 1)
+      onChange(next)
+    } catch {
+      setError("Не удалось загрузить файл")
+    } finally {
+      setIsUploading(false)
+      // TODO: сброс инпута
+    }
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-sm font-medium">{label}</label>
+      <Input type="file" accept={accept} multiple={multiple}
+             disabled={isUploading} onChange={handleChange} />
+      {/* TODO: спиннер во время загрузки */}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* TODO: список value — originalName + ссылка /api/files/{id} + кнопка "убрать" */}
+    </div>
+  )
+}
+```
+
+### Е3 — Как это выглядит в `AdminCardForm`
+
+Вся форма схлопывается до двух строк вместо двух больших кусков:
+
+```tsx
+<FilePicker label="Аудиофайл" businessType="audio" accept="audio/*"
+            value={audioFiles} onChange={(f) => setValue("audioFiles", f)} />
+
+<FilePicker label="Изображения" businessType="image" accept="image/*" multiple
+            value={imageFiles} onChange={(f) => setValue("imageFiles", f)} />
+```
+
+Форма больше не знает про `isUploading`, `uploadFile`, `<input>`, списки — только «вот значение поля, вот как его обновить». Это и есть смысл: компонент отвечает за «как выбрать и загрузить файл», форма — за «какие файлы привязаны к карточке».
+
+### Е4 — Что обсудить в PR
+
+- Что стало пропсом, а что осталось внутренним состоянием компонента, и почему именно так.
+- Почему `value` — массив в обоих случаях (а не `UploadedFile | UploadedFile[]` в зависимости от `multiple`).
+- Где теперь граница между «переиспользуемый UI-компонент» и «конкретная форма карточки».
+
+---
+
 ## Что должно получиться
 
 - `tsc` зелёный, `prisma generate` прогнан, старые `audioPath`/`imagePath` и `saveAudioFile`/`saveImageFile` удалены (не закомментированы).
