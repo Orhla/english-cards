@@ -9,8 +9,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
   //   создание .env.example - хорошая практика
 }
 
@@ -31,10 +32,32 @@ model WordCard {
   examples      String[]
   level         wordLevel?
   topics        Topic[]
-  audioPath     String?
-  imagePath     String?
 
-  interactions UserCardInteraction[]
+  interactions  UserCardInteraction[]
+  files         WordCardFile[]
+}
+
+model File {
+  id            String          @id @default(uuid())
+  path          String          @unique
+  originalName  String
+  mimeType      String   
+  size          Int
+  createdAt     DateTime        @default(now())
+
+  wordCard      WordCardFile?
+}
+
+model WordCardFile {
+  id           Int            @id @default(autoincrement())
+  wordCardId   Int
+  fileId       String         @unique
+  businessType businessType
+
+  wordCard     WordCard       @relation(fields: [wordCardId], references: [id], onDelete: Cascade)
+  file         File           @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([wordCardId])
 }
 
 enum partOfSpeech {
@@ -56,6 +79,11 @@ enum wordLevel {
   B2
   C1
   C2
+}
+
+enum businessType {
+  audio
+  image
 }
 
 model Topic {

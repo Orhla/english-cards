@@ -6,7 +6,7 @@ export const FOLDER_ID = process.env.FOLDER_ID ?? "";
 export const NODE_ENV = process.env.NODE_ENV;
 
 export const AUDIO_DIR = "./public/audio";
-export const IMAGE_DIR = "./public/image";
+export const IMAGE_DIR = "./public/images/cards";
 
 export const YANDEX_BASE_URL = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize";
 export const YANDEX_TRANSLATE_BASE_URL = "https://translate.api.cloud.yandex.net/translate/v2/translate";
