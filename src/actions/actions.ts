@@ -450,7 +450,7 @@ export async function uploadFile(file: File, businessType: "audio" | "image"): P
 
   const fileExtension = businessType === "audio" ? audioMimeToExt[file.type] : imageMimeToExt[file.type];  
   const fileId = crypto.randomUUID();
-  const uniqueFileName = `${fileId}${fileExtension}`;
+  const uniqueFileName = `${fileId}.${fileExtension}`;
   const filePath = path.join(STORAGE_DIR, targetFolder, uniqueFileName);
 
   try {
