@@ -5,10 +5,10 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, AUDIO_DIR, ERROR_CARDS_NUMBER, IMAGE_DIR, LANGUAGES, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MAX_IMAGE_FILE_SIZE_IN_BYTES, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
+import { ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, AUDIO_DIR, audioMimeToExt, ERROR_CARDS_NUMBER, IMAGE_DIR, imageMimeToExt, LANGUAGES, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MAX_IMAGE_FILE_SIZE_IN_BYTES, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
-import { access, mkdir, writeFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
 
@@ -404,78 +404,6 @@ export async function getAllTopics(): Promise<string[]> {
 }
 
 
-export async function saveAudioFile(word: string, file: File): Promise<string> {
-    if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
-      actionLogger.warn("Аудио файл имеет неверный формат", {function: "saveAudioFile", type: file.type});
-      throw new Error(`Аудио файл имеет неверный формат: ${file.type}`);
-    }
-
-    if (file.size > MAX_AUDIO_FILE_SIZE_IN_BYTES) {
-      actionLogger.warn("Размер аудио файла превышает допустимый", {function: "saveAudioFile", type: file.size});
-      throw new Error(`Размер аудио файла превышает допустимый: ${file.size} > ${MAX_AUDIO_FILE_SIZE_IN_BYTES}`);
-    }
-
-    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const audioPath = path.join(AUDIO_DIR, `${safeWord}.ogg`);
-    try {
-        await access(audioPath);
-        return audioPath;
-    } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-            actionLogger.error("Нет доступа к папке с аудио файлами", {function: "saveAudioFile", error: `${error instanceof Error ? error.message : error}`});
-            throw new Error(`Нет доступа к папке с аудио файлами: ${error instanceof Error ? error.message : error}`);
-        }
-    }
-
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        await writeFile(audioPath, buffer);
-        return audioPath;
-    } catch (error) {
-        actionLogger.error("Ошибка при сохранении аудио файла", {function: "saveAudioFile", error: `${error instanceof Error ? error.message : error}`});
-        throw new Error(`Ошибка при сохранении аудио файла: ${error instanceof Error ? error.message : error}`);
-    }
-}
-
-
-export async function saveImageFile(word: string, file: File): Promise<string> {
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      actionLogger.warn("Изображение имеет неверный формат", {function: "saveImageFile", type: file.type});
-      throw new Error(`Изображение имеет неверный формат: ${file.type}`);
-    }
-
-    if (file.size > MAX_IMAGE_FILE_SIZE_IN_BYTES) {
-      actionLogger.warn("Размер изображения превышает допустимый", {function: "saveImageFile", type: file.size});
-      throw new Error(`Размер изображения превышает допустимый: ${file.size} > ${MAX_IMAGE_FILE_SIZE_IN_BYTES}`);
-    }
-
-    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const imagePath = path.join(IMAGE_DIR, `${safeWord}.webp`);
-    try {
-        await access(imagePath);
-        return imagePath;
-    } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-            actionLogger.error("Нет доступа к папке с изображениями", {function: "saveImageFile", error: `${error instanceof Error ? error.message : error}`});
-            throw new Error(`Нет доступа к папке с изображениями: ${error instanceof Error ? error.message : error}`);
-        }
-    }
-
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        await writeFile(imagePath, buffer);
-        return imagePath;
-    } catch (error) {
-        actionLogger.error("Ошибка при сохранении изображения", {function: "saveImageFile", error: `${error instanceof Error ? error.message : error}`});
-        throw new Error(`Ошибка при сохранении изображения: ${error instanceof Error ? error.message : error}`);
-    }
-}
-
-
 export async function generateWordAudio(word: string): Promise<{audioPath: string}> {
   try {
     const card = await prisma.wordCard.findUniqueOrThrow({
@@ -484,7 +412,7 @@ export async function generateWordAudio(word: string): Promise<{audioPath: strin
     await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
 
     const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const audioPath = path.join(AUDIO_DIR, `${safeWord}.ogg`);
+    const audioPath = path.join(STORAGE_DIR, AUDIO_DIR, `${safeWord}.ogg`);
 
     try {
       await prisma.wordCard.update({
@@ -516,23 +444,14 @@ export async function uploadFile(file: File, businessType: "audio" | "image"): P
   }
 
   if (file.size > maxFileSize) {
-    actionLogger.warn("Размер файла превышает допустимый", {function: "uploadFile", type: file.size});
+    actionLogger.warn("Размер файла превышает допустимый", {function: "uploadFile", size: file.size});
     throw new Error(`Размер файла превышает допустимый: ${file.size} > ${maxFileSize}`);
   }
 
-  const fileExtension = path.extname(file.name);
+  const fileExtension = businessType === "audio" ? audioMimeToExt[file.type] : imageMimeToExt[file.type];  
   const fileId = crypto.randomUUID();
-  const uniqueFileName = `${fileId}.${fileExtension}`;
-  const filePath = path.join(targetFolder, uniqueFileName);
-
-  try {
-      await mkdir(targetFolder, { recursive: true });
-  } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-          actionLogger.error("Нет доступа к папке с файлами", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
-          throw new Error(`Нет доступа к папке с файлами: ${error instanceof Error ? error.message : error}`);
-      }
-  }
+  const uniqueFileName = `${fileId}${fileExtension}`;
+  const filePath = path.join(STORAGE_DIR, targetFolder, uniqueFileName);
 
   try {
       const arrayBuffer = await file.arrayBuffer();
@@ -542,7 +461,7 @@ export async function uploadFile(file: File, businessType: "audio" | "image"): P
       const savedFile = await prisma.file.create({
         data: {
           id: fileId,
-          path: filePath,
+          path: uniqueFileName,
           originalName: file.name,
           mimeType: file.type,
           size: file.size,
