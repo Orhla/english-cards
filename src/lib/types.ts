@@ -49,3 +49,6 @@ export type YandexGPTResponse = {
   level: string
   topics: string[]
 }
+
+
+export type AllowedFileType = 'audio' | 'image';

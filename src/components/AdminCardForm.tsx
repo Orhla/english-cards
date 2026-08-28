@@ -157,6 +157,15 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         try {
             const uploadPromises = Array.from(files).map(async (file) => {
                 const serverFile = await uploadFile(file, businessType);
+                if ("error" in serverFile) {
+                    if (businessType === "audio") {
+                        setAudioUploadError(serverFile.error);
+                    } else if (businessType === "image") {
+                        setImageUploadError(serverFile.error);
+                    }
+                    return;
+                }
+
                 return {
                     id: serverFile.id,
                     originalName: serverFile.originalName,
@@ -165,8 +174,9 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             });
 
             const newUploadedFiles = await Promise.all(uploadPromises);
+            const validNewFiles = newUploadedFiles.filter((file): file is NonNullable<typeof file> => !!file);
             const currentFiles = getValues("imageFiles") || [];
-            const uploadedFiles = [...currentFiles, ...newUploadedFiles];
+            const uploadedFiles = [...currentFiles, ...validNewFiles];
 
             setValue("imageFiles", uploadedFiles);
         } catch (error) {

@@ -5,12 +5,12 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, AUDIO_DIR, audioMimeToExt, ERROR_CARDS_NUMBER, IMAGE_DIR, imageMimeToExt, LANGUAGES, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MAX_IMAGE_FILE_SIZE_IN_BYTES, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
+import { AUDIO_DIR, ERROR_CARDS_NUMBER, LANGUAGES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
-import { writeFile } from "fs/promises";
 import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
+import { uploadFileService } from "@/services/files";
 
 const actionLogger = logger.child({component: "actions.ts"})
 
@@ -433,47 +433,13 @@ export async function generateWordAudio(word: string): Promise<{audioPath: strin
 }
 
 
-export async function uploadFile(file: File, businessType: "audio" | "image"): Promise<{ id: string, originalName: string }> {
-  const allowedFileTypes = businessType === "audio" ? ALLOWED_AUDIO_TYPES : ALLOWED_IMAGE_TYPES;
-  const maxFileSize = businessType === "audio" ? MAX_AUDIO_FILE_SIZE_IN_BYTES : MAX_IMAGE_FILE_SIZE_IN_BYTES;
-  const targetFolder = businessType === "audio" ? AUDIO_DIR : IMAGE_DIR;
-
-  if (!allowedFileTypes.includes(file.type)) {
-    actionLogger.warn("Файл имеет неверный формат", {function: "uploadFile", type: file.type});
-    throw new Error(`Файл имеет неверный формат: ${file.type}`);
-  }
-
-  if (file.size > maxFileSize) {
-    actionLogger.warn("Размер файла превышает допустимый", {function: "uploadFile", size: file.size});
-    throw new Error(`Размер файла превышает допустимый: ${file.size} > ${maxFileSize}`);
-  }
-
-  const fileExtension = businessType === "audio" ? audioMimeToExt[file.type] : imageMimeToExt[file.type];  
-  const fileId = crypto.randomUUID();
-  const uniqueFileName = `${fileId}.${fileExtension}`;
-  const filePath = path.join(STORAGE_DIR, targetFolder, uniqueFileName);
-
+export async function uploadFile(file: File, businessType: "audio" | "image"): Promise<{ id: string, originalName: string } | {error: string}> {
+  const session = await requireAdmin();
   try {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      await writeFile(filePath, buffer);
-      const savedFile = await prisma.file.create({
-        data: {
-          id: fileId,
-          path: uniqueFileName,
-          originalName: file.name,
-          mimeType: file.type,
-          size: file.size,
-        },
-        select: {
-          id: true,
-          originalName: true
-        }
-      });
-      return savedFile;
+    const uploadedFile = await uploadFileService(file, businessType);
+    return uploadedFile;
   } catch (error) {
-      actionLogger.error("Ошибка при сохранении файла", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
-      throw new Error(`Ошибка при сохранении файла: ${error instanceof Error ? error.message : error}`);
+    actionLogger.error("Не удалось загрузить файл", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
+    return { error: error instanceof Error ? error.message : "Не удалось загрузить файл" };
   }
 }
