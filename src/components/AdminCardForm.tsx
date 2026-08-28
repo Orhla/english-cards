@@ -4,7 +4,7 @@ import { startTransition, useActionState, useState } from "react"
 import { useForm, useFieldArray, FormProvider } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { generateWordAudio, wordCardFormAction, WordCardFormPayload } from "@/actions/actions"
+import { generateWordAudio, uploadFile, wordCardFormAction, WordCardFormPayload } from "@/actions/actions"
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser"
 import { Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -20,20 +20,21 @@ const AVAILABLE_PARTS_OF_SPEECH = Object.values(partOfSpeech)
 const FormSchema = z.object({
     word: z.string().min(1, "Введите слово"),
     transcription: z.string().optional(),
-    audio: z.any().optional(),
-    image: z.any().optional(),
+    // audio: z.any().optional(),
+    // image: z.any().optional(),
     partsOfSpeech: z.array(z.enum(partOfSpeech)),
     translation: z.array(z.object({ value: z.string() })),
     meaning: z.array(z.object({ value: z.string() })),
     example: z.array(z.object({ value: z.string() })),
     topics: z.array(z.string()),
+    imageFiles: z.array(z.object({id: z.string(), originalName: z.string()})),
 })
 
 type FormValues = z.infer<typeof FormSchema>
 
 type Props = {
     mode: "create" | "edit"
-    card?: WordCard & { topics: string[] }
+    card?: WordCard & { topics: string[] } & { files: { fileId: string, businessType: "audio" | "image", file: { path: string, originalName: string, mimeType: string, size: number, createdAt: Date } }[] }
     allTopics?: string[]
 }
 
@@ -58,10 +59,13 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 ? card.examples.map((v) => ({ value: v }))
                 : [{ value: "" }],
             topics: card?.topics ?? [],
+            imageFiles: card?.files?.map(fileLink => ({id: fileLink.fileId, originalName: fileLink.file.originalName})) ?? []
         },
     })
 
     const { register, control, handleSubmit, setValue, getValues, watch } = methods
+
+    console.log("ImageFiles", getValues("imageFiles"))
 
     const translation = useFieldArray({ control, name: "translation" })
     const meaning = useFieldArray({ control, name: "meaning" })
@@ -72,6 +76,12 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
     const [autoFillError, setAutoFillError] = useState<string | null>(null)
     const [audioAutoFillError, setAudioAutoFillError] = useState<string | null>(null)
+
+    const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+    const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
+
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [imageUploadError, setImageUploadError] = useState<string | null>(null)
 
     const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault()
@@ -130,6 +140,62 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         }
     }
 
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, businessType: "audio" | "image") => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        if (businessType === "audio") {
+            setIsUploadingAudio(true);
+            setAudioUploadError(null);
+        }
+
+        if (businessType === "image") {
+            setIsUploadingImage(true);
+            setImageUploadError(null);
+        }
+
+        try {
+            const uploadPromises = Array.from(files).map(async (file) => {
+                const serverFile = await uploadFile(file, businessType);
+                return {
+                    id: serverFile.id,
+                    originalName: serverFile.originalName,
+                    businessType: businessType
+                };
+            });
+
+            const newUploadedFiles = await Promise.all(uploadPromises);
+            const currentFiles = getValues("imageFiles") || [];
+            const uploadedFiles = [...currentFiles, ...newUploadedFiles];
+
+            setValue("imageFiles", uploadedFiles);
+        } catch (error) {
+            console.error("Ошибка при загрузке файла", error instanceof Error ? error.message : error);
+
+            if (businessType === "audio") {
+                setAudioUploadError(error instanceof Error ? error.message : "Ошибка при загрузке аудио");
+            }
+            if (businessType === "image") {
+                setImageUploadError(error instanceof Error ? error.message : "Ошибка при загрузке изображения");
+            }
+        } finally {
+            if (businessType === "audio") {
+                setIsUploadingAudio(false);
+            }
+            if (businessType === "image") {
+                setIsUploadingImage(false);
+            }
+        }
+    }
+
+    const handleAudioChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        await handleFileChange(e, "audio");
+    }
+
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        await handleFileChange(e, "image");
+    }
+
     const onSubmit = handleSubmit((data) => {
         const payload: WordCardFormPayload = {
             id: isEditMode ? String(card?.id) : undefined,
@@ -140,8 +206,8 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             example: data.example.map(i => i.value).filter(Boolean),
             partsOfSpeech: data.partsOfSpeech,
             topics: data.topics,
-            audio: (data.audio as FileList | undefined)?.[0],
-            image: (data.image as FileList | undefined)?.[0],
+            // audio: (data.audio as FileList | undefined),
+            imageFiles: (data.imageFiles),
         }
         startTransition(() => formAction(payload))
     })
@@ -199,10 +265,12 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                             <label htmlFor="audio" className="text-sm font-medium text-foreground">Аудиофайл</label>
 
                             <div className="flex items-start gap-2">
-                                <Input id="audio" {...register("audio")}
+                                <Input id="audio"
                                     type="file"
                                     accept="audio/*"
-                                    disabled={isPending} />
+                                    disabled={isPending || isUploadingAudio}
+                                    onChange={handleAudioChange}
+                                    multiple />
 
                                 {isEditMode && (
                                     <div className="flex flex-col gap-1 shrink-0">
@@ -215,6 +283,12 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                                     </div> )}
                             </div>
 
+                            {audioUploadError && (
+                                <p className="text-sm text-destructive">
+                                    {audioUploadError}
+                                </p>
+                            )}
+
                             {isEditMode && audioAutoFillError && (
                                 <p className="text-sm text-destructive">
                                     {audioAutoFillError}
@@ -225,10 +299,22 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                         {/* Изображение */}
                         <div className="space-y-1.5">
                             <label htmlFor="image" className="text-sm font-medium text-foreground">Изображение</label>
-                            <Input id="image" {...register("image")}
+                            <Input id="image"
                                 type="file"
                                 accept="image/*"
-                                disabled={isPending} />
+                                disabled={isPending || isUploadingImage}
+                                onChange={handleImageChange}
+                                multiple />
+                            {getValues("imageFiles")
+                                .map(file =>(<a href={`http://localhost:3000/${file.id}`} key={file.id}>
+                                    {`http://localhost:3000/${file.originalName}`}
+                                </a>))}
+
+                            {imageUploadError && (
+                                <p className="text-sm text-destructive">
+                                    {imageUploadError}
+                                </p>
+                            )}
                         </div>
 
                         {/* Части речи */}

@@ -26,6 +26,9 @@ export default async function WordCardsPage({ params, searchParams }: Props) {
         include: {
             topics: {
                 select: { name: true }
+            },
+            files: {
+                select: { fileId: true, businessType: true, file: { select: { path: true, originalName: true, mimeType: true, size: true, createdAt: true } } },
             }
         }
     });
