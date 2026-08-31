@@ -14,27 +14,27 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import ArrayFieldInput from "@/components/ArrayFieldInput"
 import { getWordTranscription, getWordTranslations } from "@/actions/actions_translate"
 import { enrichWordCard } from "@/actions/actions_yagpt"
+import { AllowedFileType } from "@/lib/types"
 
 const AVAILABLE_PARTS_OF_SPEECH = Object.values(partOfSpeech)
 
 const FormSchema = z.object({
     word: z.string().min(1, "Введите слово"),
     transcription: z.string().optional(),
-    // audio: z.any().optional(),
-    // image: z.any().optional(),
     partsOfSpeech: z.array(z.enum(partOfSpeech)),
     translation: z.array(z.object({ value: z.string() })),
     meaning: z.array(z.object({ value: z.string() })),
     example: z.array(z.object({ value: z.string() })),
     topics: z.array(z.string()),
-    imageFiles: z.array(z.object({id: z.string(), originalName: z.string()})),
+    audioFiles:  z.array(z.object({ id: z.string(), originalName: z.string() })),
+    imageFiles: z.array(z.object({ id: z.string(), originalName: z.string() })),
 })
 
 type FormValues = z.infer<typeof FormSchema>
 
 type Props = {
     mode: "create" | "edit"
-    card?: WordCard & { topics: string[] } & { files: { fileId: string, businessType: "audio" | "image", file: { path: string, originalName: string, mimeType: string, size: number, createdAt: Date } }[] }
+    card?: WordCard & { topics: string[] } & { files: { fileId: string, businessType: AllowedFileType, file: { path: string, originalName: string, mimeType: string, size: number, createdAt: Date } }[] }
     allTopics?: string[]
 }
 
@@ -59,7 +59,10 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                 ? card.examples.map((v) => ({ value: v }))
                 : [{ value: "" }],
             topics: card?.topics ?? [],
-            imageFiles: card?.files?.map(fileLink => ({id: fileLink.fileId, originalName: fileLink.file.originalName})) ?? []
+            audioFiles: card?.files?.filter(f => f.businessType === "audio")
+                                    .map(f => ({ id: f.fileId, originalName: f.file.originalName })) ?? [],
+            imageFiles: card?.files?.filter(f => f.businessType === "image")
+                                    .map(f => ({ id: f.fileId, originalName: f.file.originalName })) ?? [],
         },
     })
 
@@ -73,6 +76,8 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
     const selectedParts = watch("partsOfSpeech")
     const selectedTopics = watch("topics")
+    const audioFiles = watch("audioFiles")
+    const imageFiles = watch("imageFiles")
 
     const [autoFillError, setAutoFillError] = useState<string | null>(null)
     const [audioAutoFillError, setAudioAutoFillError] = useState<string | null>(null)
@@ -140,7 +145,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         }
     }
 
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, businessType: "audio" | "image") => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, businessType: AllowedFileType) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
@@ -175,10 +180,10 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
             const newUploadedFiles = await Promise.all(uploadPromises);
             const validNewFiles = newUploadedFiles.filter((file): file is NonNullable<typeof file> => !!file);
-            const currentFiles = getValues("imageFiles") || [];
-            const uploadedFiles = [...currentFiles, ...validNewFiles];
-
-            setValue("imageFiles", uploadedFiles);
+            const fileKey = businessType === "audio" ? "audioFiles" : "imageFiles";
+            const uploadedFiles = [...(getValues(fileKey) || []), ...validNewFiles];         
+            
+            setValue(fileKey, uploadedFiles);
         } catch (error) {
             console.error("Ошибка при загрузке файла", error instanceof Error ? error.message : error);
 
@@ -195,6 +200,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             if (businessType === "image") {
                 setIsUploadingImage(false);
             }
+            e.target.value = "";
         }
     }
 
@@ -216,8 +222,8 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             example: data.example.map(i => i.value).filter(Boolean),
             partsOfSpeech: data.partsOfSpeech,
             topics: data.topics,
-            // audio: (data.audio as FileList | undefined),
-            imageFiles: (data.imageFiles),
+            audioFiles: data.audioFiles.map(f => ({ id: f.id })),
+            imageFiles: data.imageFiles.map(f => ({ id: f.id })),
         }
         startTransition(() => formAction(payload))
     })

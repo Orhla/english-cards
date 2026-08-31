@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
+import { WordCard, businessType, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
@@ -45,70 +45,93 @@ export type WordCardFormPayload = {
     example: string[]
     partsOfSpeech: partOfSpeech[]
     topics: string[]
-    imageFiles?: { id: string}[]
-    // audio?: File
-    // image?: File
+    audioFiles : { id: string}[] 
+    imageFiles: { id: string}[]
 }
 
 export async function wordCardFormAction(prevState: unknown, data: WordCardFormPayload): Promise<{ error?: string } | null> {
     const session = await requireAdmin();
     console.log("wordCardFormAction called with data:", data);
 
-    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, imageFiles } = data;
-    // let savedAudioPath: string | undefined = undefined;
-    // let savedImagePath: string | undefined = undefined;
-
-    // if (audio && audio.size > 0) {
-    //     actionLogger.debug("Информация об аудио файле: ", { function: "wordCardFormAction", audio_file_name: audio.name, size: audio.size });
-    //     savedAudioPath = await saveAudioFile(word, audio);
-    // } else {
-    //     actionLogger.debug("Аудио файл отсутствует", { function: "wordCardFormAction" });
-    // }
-    //
-    // if (image && image.size > 0) {
-    //     actionLogger.debug("Информация об изображении: ", { function: "wordCardFormAction", image_file_name: image.name, size: image.size });
-    //     savedImagePath = await saveImageFile(word, image);
-    // } else {
-    //     actionLogger.debug("Изображение отсутствует", { function: "wordCardFormAction" });
-    // }
-
+    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audioFiles, imageFiles } = data;
+ 
     try {
         if (id) {
-            const wordCard = await prisma.wordCard.update({
-                where: { id: Number(id) },
-                data: { word,
-                        transcription,
-                        translation,
-                        meaning,
-                        examples: example,
-                        partsOfSpeech,
-                        // ...(savedAudioPath && { audioPath: savedAudioPath }),
-                        // ...(savedImagePath && {imagePath: savedImagePath}),
-                        topics: {
-                            set: [],
-                            connect: topics.map((topicName) => ({ name: topicName })),
-                        },
-                },
-            });
+          await prisma.$transaction(async (tx) => {
+              const updatedCard = await tx.wordCard.update({
+                      where: { id: Number(id) },
+                      data: { word,
+                              transcription,
+                              translation,
+                              meaning,
+                              examples: example,
+                              partsOfSpeech,
+                              topics: {
+                                  set: [],
+                                  connect: topics.map((topicName) => ({ name: topicName })),
+                              },
+                      },
+              });
+
+              await tx.wordCardFile.deleteMany({
+                  where: { wordCardId: updatedCard.id }
+              });
+
+              await tx.wordCardFile.createMany({
+                  data: audioFiles.map(f => ({
+                      wordCardId: updatedCard.id,
+                      fileId: f.id,
+                      businessType: "audio"
+                  }))
+              });
+
+              await tx.wordCardFile.createMany({
+                  data: imageFiles.map(f => ({
+                      wordCardId: updatedCard.id,
+                      fileId: f.id,
+                      businessType: "image"
+                  }))
+              });
+          });
             // 1. delete all files associated with this wordCard. 2. create new links between wordCard and files. If we do this in one transaction, then this is OK
             // todo: update links between wordCard and files. We need not only create new links, but we should also remove old ones that are not in the new list.
 
 
         } else {
-            await prisma.wordCard.create({
-                data: { word,
-                        transcription,
-                        translation,
-                        meaning,
-                        examples: example,
-                        partsOfSpeech,
-                        // audioPath: savedAudioPath,
-                        // imagePath: savedImagePath,
-                        topics: {
-                            connect: topics.map((topicName) => ({ name: topicName })),
-                        },
-                },
-            });
+            await prisma.$transaction(async (tx) => {
+                const createdCard = await tx.wordCard.create({
+                    data: { word,
+                            transcription,
+                            translation,
+                            meaning,
+                            examples: example,
+                            partsOfSpeech,
+                            topics: {
+                                connect: topics.map((topicName) => ({ name: topicName })),
+                            },
+                    },
+                });
+
+                await tx.wordCardFile.deleteMany({
+                    where: { wordCardId: createdCard.id }
+                });
+
+                await tx.wordCardFile.createMany({
+                    data: audioFiles.map(f => ({
+                        wordCardId: createdCard.id,
+                        fileId: f.id,
+                        businessType: "audio"
+                    }))
+                });
+
+                await tx.wordCardFile.createMany({
+                    data: imageFiles.map(f => ({
+                        wordCardId: createdCard.id,
+                        fileId: f.id,
+                        businessType: "image"
+                    }))
+                });
+          });
         }
 
         actionLogger.debug("Форма сохранения карточки отправлена", {
