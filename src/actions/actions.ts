@@ -10,7 +10,7 @@ import { WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
 import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
-import { uploadFileService } from "@/services/files";
+import {uploadFileService, ValidationError} from "@/services/files";
 
 const actionLogger = logger.child({component: "actions.ts"})
 
@@ -45,7 +45,7 @@ export type WordCardFormPayload = {
     example: string[]
     partsOfSpeech: partOfSpeech[]
     topics: string[]
-    audioFiles : { id: string}[] 
+    audioFiles : { id: string}[]
     imageFiles: { id: string}[]
 }
 
@@ -54,32 +54,47 @@ export async function wordCardFormAction(prevState: unknown, data: WordCardFormP
     console.log("wordCardFormAction called with data:", data);
 
     const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audioFiles, imageFiles } = data;
- 
+
     try {
-        if (id) {
+        // if (id) {
           await prisma.$transaction(async (tx) => {
-              const updatedCard = await tx.wordCard.update({
-                      where: { id: Number(id) },
-                      data: { word,
-                              transcription,
-                              translation,
-                              meaning,
-                              examples: example,
-                              partsOfSpeech,
-                              topics: {
-                                  set: [],
-                                  connect: topics.map((topicName) => ({ name: topicName })),
-                              },
+              const card = id
+                  ? await tx.wordCard.update({
+                  where: {id: Number(id)},
+                  data: {
+                      word,
+                      transcription,
+                      translation,
+                      meaning,
+                      examples: example,
+                      partsOfSpeech,
+                      topics: {
+                          set: [],
+                          connect: topics.map((topicName) => ({name: topicName})),
                       },
+                  },
+              })
+                  : await tx.wordCard.create({
+                  data: { word,
+                      transcription,
+                      translation,
+                      meaning,
+                      examples: example,
+                      partsOfSpeech,
+                      topics: {
+                          connect: topics.map((topicName) => ({ name: topicName })),
+                      },
+                  },
               });
 
+
               await tx.wordCardFile.deleteMany({
-                  where: { wordCardId: updatedCard.id }
+                  where: { wordCardId: card.id }
               });
 
               await tx.wordCardFile.createMany({
                   data: audioFiles.map(f => ({
-                      wordCardId: updatedCard.id,
+                      wordCardId: card.id,
                       fileId: f.id,
                       businessType: "audio"
                   }))
@@ -87,7 +102,7 @@ export async function wordCardFormAction(prevState: unknown, data: WordCardFormP
 
               await tx.wordCardFile.createMany({
                   data: imageFiles.map(f => ({
-                      wordCardId: updatedCard.id,
+                      wordCardId: card.id,
                       fileId: f.id,
                       businessType: "image"
                   }))
@@ -97,42 +112,42 @@ export async function wordCardFormAction(prevState: unknown, data: WordCardFormP
             // todo: update links between wordCard and files. We need not only create new links, but we should also remove old ones that are not in the new list.
 
 
-        } else {
-            await prisma.$transaction(async (tx) => {
-                const createdCard = await tx.wordCard.create({
-                    data: { word,
-                            transcription,
-                            translation,
-                            meaning,
-                            examples: example,
-                            partsOfSpeech,
-                            topics: {
-                                connect: topics.map((topicName) => ({ name: topicName })),
-                            },
-                    },
-                });
-
-                await tx.wordCardFile.deleteMany({
-                    where: { wordCardId: createdCard.id }
-                });
-
-                await tx.wordCardFile.createMany({
-                    data: audioFiles.map(f => ({
-                        wordCardId: createdCard.id,
-                        fileId: f.id,
-                        businessType: "audio"
-                    }))
-                });
-
-                await tx.wordCardFile.createMany({
-                    data: imageFiles.map(f => ({
-                        wordCardId: createdCard.id,
-                        fileId: f.id,
-                        businessType: "image"
-                    }))
-                });
-          });
-        }
+        // } else {
+        //     await prisma.$transaction(async (tx) => {
+        //         const createdCard = await tx.wordCard.create({
+        //             data: { word,
+        //                     transcription,
+        //                     translation,
+        //                     meaning,
+        //                     examples: example,
+        //                     partsOfSpeech,
+        //                     topics: {
+        //                         connect: topics.map((topicName) => ({ name: topicName })),
+        //                     },
+        //             },
+        //         });
+        //
+        //         await tx.wordCardFile.deleteMany({
+        //             where: { wordCardId: createdCard.id }
+        //         });
+        //
+        //         await tx.wordCardFile.createMany({
+        //             data: audioFiles.map(f => ({
+        //                 wordCardId: createdCard.id,
+        //                 fileId: f.id,
+        //                 businessType: "audio"
+        //             }))
+        //         });
+        //
+        //         await tx.wordCardFile.createMany({
+        //             data: imageFiles.map(f => ({
+        //                 wordCardId: createdCard.id,
+        //                 fileId: f.id,
+        //                 businessType: "image"
+        //             }))
+        //         });
+        //   });
+        // }
 
         actionLogger.debug("Форма сохранения карточки отправлена", {
             function: "wordCardFormAction",
@@ -462,7 +477,11 @@ export async function uploadFile(file: File, businessType: "audio" | "image"): P
     const uploadedFile = await uploadFileService(file, businessType);
     return uploadedFile;
   } catch (error) {
-    actionLogger.error("Не удалось загрузить файл", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
-    return { error: error instanceof Error ? error.message : "Не удалось загрузить файл" };
+      actionLogger.error("Не удалось загрузить файл", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
+
+      if (error instanceof ValidationError) {
+          return { error: error.message };
+      }
+      return { error: "Неизвестная ошибка при записи файла" };
   }
 }

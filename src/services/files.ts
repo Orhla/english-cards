@@ -7,36 +7,32 @@ import path from "path";
 
 const filesLogger = logger.child({component: "files.ts"});
 
-type ValidateFileStatus =
-    | { success: true }
-    | { success: false, message: string }
+// type ValidateFileStatus =
+//     | { success: true }
+//     | { success: false, message: string }
 
-export function validateFile(file: File, businessType: AllowedFileType): ValidateFileStatus {
+export function validateFile(file: File, businessType: AllowedFileType): string {
     const allowedFileTypes = businessType === "audio" ? ALLOWED_AUDIO_TYPES : ALLOWED_IMAGE_TYPES;
     const maxFileSize = businessType === "audio" ? MAX_AUDIO_FILE_SIZE_IN_BYTES : MAX_IMAGE_FILE_SIZE_IN_BYTES;
 
     if (!allowedFileTypes.includes(file.type)) {
         filesLogger.warn("Файл имеет неверный формат", {function: "validateFile", type: file.type});
-        return { success: false, message: "Файл имеет неверный формат" };
+        throw new ValidationError("Файл имеет неверный формат");
     }
 
     if (file.size > maxFileSize) {
         filesLogger.warn("Размер файла превышает допустимый", {function: "validateFile", size: file.size});
-        return { success: false, message: "Размер файла превышает допустимый" };
+        throw new ValidationError("Размер файла превышает допустимый");
     }
-
-    return { success: true };
 }
 
+export class ValidationError extends Error {}
 
 export async function uploadFileService(file: File, businessType: AllowedFileType): Promise<{ id: string, originalName: string }> {
-    const validateFileStatus = validateFile(file, businessType);
-    if (!validateFileStatus.success) {
-        throw new Error(validateFileStatus.message);
-    }
+    validateFile(file, businessType);
 
     const targetFolder = businessType === "audio" ? AUDIO_DIR : IMAGE_DIR;
-    const fileExtension = businessType === "audio" ? audioMimeToExt[file.type] : imageMimeToExt[file.type];  
+    const fileExtension = businessType === "audio" ? audioMimeToExt[file.type] : imageMimeToExt[file.type];
     const fileId = crypto.randomUUID();
     const uniqueFileName = `${fileId}.${fileExtension}`;
     const filePath = path.join(targetFolder, uniqueFileName);
@@ -85,7 +81,7 @@ export async function getFileById(id: string): Promise<File | null> {
         const selectedFileBuffer = await readFromStorage(selectedFilePath.path);
         const fileData = new Uint8Array(selectedFileBuffer);
         const selectedFile = new File([fileData], selectedFilePath.path);
-        
+
         return selectedFile;
     } catch (error) {
         filesLogger.error("Ошибка при обращении к файлу", {function: "getFileById", error: `${error instanceof Error ? error.message : error}`});

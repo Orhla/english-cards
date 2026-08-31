@@ -71,6 +71,8 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
     console.log("ImageFiles", getValues("imageFiles"))
 
     const translation = useFieldArray({ control, name: "translation" })
+
+    console.log("Translation111", translation)
     const meaning = useFieldArray({ control, name: "meaning" })
     const example = useFieldArray({ control, name: "example" })
 
@@ -181,8 +183,8 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
             const newUploadedFiles = await Promise.all(uploadPromises);
             const validNewFiles = newUploadedFiles.filter((file): file is NonNullable<typeof file> => !!file);
             const fileKey = businessType === "audio" ? "audioFiles" : "imageFiles";
-            const uploadedFiles = [...(getValues(fileKey) || []), ...validNewFiles];         
-            
+            const uploadedFiles = [...(getValues(fileKey) || []), ...validNewFiles];
+
             setValue(fileKey, uploadedFiles);
         } catch (error) {
             console.error("Ошибка при загрузке файла", error instanceof Error ? error.message : error);
@@ -360,7 +362,9 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                         </div>
 
                         {/* Перевод */}
-                        <ArrayFieldInput label="Перевод" name="translation"
+                        <ArrayFieldInput
+                            label="Перевод"
+                            name="translation"
                             fields={translation.fields}
                             onAdd={() => translation.append({ value: "" })}
                             onRemove={translation.remove}
@@ -383,7 +387,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                         {/* Топики */}
                         <div className="space-y-3">
                             <div className="text-sm font-medium text-foreground">Топики</div>
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
                                 {allTopics?.map((topic) => (
                                     <div key={topic} className="flex items-center gap-2">
                                         <Checkbox
