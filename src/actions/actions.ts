@@ -1,16 +1,16 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
+import { WordCard, businessType, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, AUDIO_DIR, ERROR_CARDS_NUMBER, IMAGE_DIR, LANGUAGES, MAX_AUDIO_FILE_SIZE_IN_BYTES, MAX_CARDS_NUMBER, MAX_IMAGE_FILE_SIZE_IN_BYTES, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
+import { AUDIO_DIR, ERROR_CARDS_NUMBER, LANGUAGES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
 import { WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
-import { access, mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
+import {uploadFileService, ValidationError} from "@/services/files";
 
 const actionLogger = logger.child({component: "actions.ts"})
 
@@ -45,71 +45,109 @@ export type WordCardFormPayload = {
     example: string[]
     partsOfSpeech: partOfSpeech[]
     topics: string[]
-    imageFiles?: { id: string}[]
-    // audio?: File
-    // image?: File
+    audioFiles : { id: string}[]
+    imageFiles: { id: string}[]
 }
 
 export async function wordCardFormAction(prevState: unknown, data: WordCardFormPayload): Promise<{ error?: string } | null> {
     const session = await requireAdmin();
     console.log("wordCardFormAction called with data:", data);
 
-    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, imageFiles } = data;
-    // let savedAudioPath: string | undefined = undefined;
-    // let savedImagePath: string | undefined = undefined;
-
-    // if (audio && audio.size > 0) {
-    //     actionLogger.debug("Информация об аудио файле: ", { function: "wordCardFormAction", audio_file_name: audio.name, size: audio.size });
-    //     savedAudioPath = await saveAudioFile(word, audio);
-    // } else {
-    //     actionLogger.debug("Аудио файл отсутствует", { function: "wordCardFormAction" });
-    // }
-    //
-    // if (image && image.size > 0) {
-    //     actionLogger.debug("Информация об изображении: ", { function: "wordCardFormAction", image_file_name: image.name, size: image.size });
-    //     savedImagePath = await saveImageFile(word, image);
-    // } else {
-    //     actionLogger.debug("Изображение отсутствует", { function: "wordCardFormAction" });
-    // }
+    const { id, word, transcription, translation, meaning, example, partsOfSpeech, topics, audioFiles, imageFiles } = data;
 
     try {
-        if (id) {
-            const wordCard = await prisma.wordCard.update({
-                where: { id: Number(id) },
-                data: { word,
-                        transcription,
-                        translation,
-                        meaning,
-                        examples: example,
-                        partsOfSpeech,
-                        // ...(savedAudioPath && { audioPath: savedAudioPath }),
-                        // ...(savedImagePath && {imagePath: savedImagePath}),
-                        topics: {
-                            set: [],
-                            connect: topics.map((topicName) => ({ name: topicName })),
-                        },
-                },
-            });
+        // if (id) {
+          await prisma.$transaction(async (tx) => {
+              const card = id
+                  ? await tx.wordCard.update({
+                  where: {id: Number(id)},
+                  data: {
+                      word,
+                      transcription,
+                      translation,
+                      meaning,
+                      examples: example,
+                      partsOfSpeech,
+                      topics: {
+                          set: [],
+                          connect: topics.map((topicName) => ({name: topicName})),
+                      },
+                  },
+              })
+                  : await tx.wordCard.create({
+                  data: { word,
+                      transcription,
+                      translation,
+                      meaning,
+                      examples: example,
+                      partsOfSpeech,
+                      topics: {
+                          connect: topics.map((topicName) => ({ name: topicName })),
+                      },
+                  },
+              });
+
+
+              await tx.wordCardFile.deleteMany({
+                  where: { wordCardId: card.id }
+              });
+
+              await tx.wordCardFile.createMany({
+                  data: audioFiles.map(f => ({
+                      wordCardId: card.id,
+                      fileId: f.id,
+                      businessType: "audio"
+                  }))
+              });
+
+              await tx.wordCardFile.createMany({
+                  data: imageFiles.map(f => ({
+                      wordCardId: card.id,
+                      fileId: f.id,
+                      businessType: "image"
+                  }))
+              });
+          });
             // 1. delete all files associated with this wordCard. 2. create new links between wordCard and files. If we do this in one transaction, then this is OK
             // todo: update links between wordCard and files. We need not only create new links, but we should also remove old ones that are not in the new list.
 
 
-        } else {
-            await prisma.wordCard.create({
-                data: { word,
-                        transcription,
-                        translation,
-                        meaning,
-                        examples: example,
-                        partsOfSpeech,
-                        // audioPath: savedAudioPath,
-                        // imagePath: savedImagePath,
-                        topics: {
-                            connect: topics.map((topicName) => ({ name: topicName })),
-                        },
-                },
-            });
-        }
+        // } else {
+        //     await prisma.$transaction(async (tx) => {
+        //         const createdCard = await tx.wordCard.create({
+        //             data: { word,
+        //                     transcription,
+        //                     translation,
+        //                     meaning,
+        //                     examples: example,
+        //                     partsOfSpeech,
+        //                     topics: {
+        //                         connect: topics.map((topicName) => ({ name: topicName })),
+        //                     },
+        //             },
+        //         });
+        //
+        //         await tx.wordCardFile.deleteMany({
+        //             where: { wordCardId: createdCard.id }
+        //         });
+        //
+        //         await tx.wordCardFile.createMany({
+        //             data: audioFiles.map(f => ({
+        //                 wordCardId: createdCard.id,
+        //                 fileId: f.id,
+        //                 businessType: "audio"
+        //             }))
+        //         });
+        //
+        //         await tx.wordCardFile.createMany({
+        //             data: imageFiles.map(f => ({
+        //                 wordCardId: createdCard.id,
+        //                 fileId: f.id,
+        //                 businessType: "image"
+        //             }))
+        //         });
+        //   });
+        // }
 
         actionLogger.debug("Форма сохранения карточки отправлена", {
             function: "wordCardFormAction",
@@ -404,78 +442,6 @@ export async function getAllTopics(): Promise<string[]> {
 }
 
 
-export async function saveAudioFile(word: string, file: File): Promise<string> {
-    if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
-      actionLogger.warn("Аудио файл имеет неверный формат", {function: "saveAudioFile", type: file.type});
-      throw new Error(`Аудио файл имеет неверный формат: ${file.type}`);
-    }
-
-    if (file.size > MAX_AUDIO_FILE_SIZE_IN_BYTES) {
-      actionLogger.warn("Размер аудио файла превышает допустимый", {function: "saveAudioFile", type: file.size});
-      throw new Error(`Размер аудио файла превышает допустимый: ${file.size} > ${MAX_AUDIO_FILE_SIZE_IN_BYTES}`);
-    }
-
-    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const audioPath = path.join(AUDIO_DIR, `${safeWord}.ogg`);
-    try {
-        await access(audioPath);
-        return audioPath;
-    } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-            actionLogger.error("Нет доступа к папке с аудио файлами", {function: "saveAudioFile", error: `${error instanceof Error ? error.message : error}`});
-            throw new Error(`Нет доступа к папке с аудио файлами: ${error instanceof Error ? error.message : error}`);
-        }
-    }
-
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        await writeFile(audioPath, buffer);
-        return audioPath;
-    } catch (error) {
-        actionLogger.error("Ошибка при сохранении аудио файла", {function: "saveAudioFile", error: `${error instanceof Error ? error.message : error}`});
-        throw new Error(`Ошибка при сохранении аудио файла: ${error instanceof Error ? error.message : error}`);
-    }
-}
-
-
-export async function saveImageFile(word: string, file: File): Promise<string> {
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      actionLogger.warn("Изображение имеет неверный формат", {function: "saveImageFile", type: file.type});
-      throw new Error(`Изображение имеет неверный формат: ${file.type}`);
-    }
-
-    if (file.size > MAX_IMAGE_FILE_SIZE_IN_BYTES) {
-      actionLogger.warn("Размер изображения превышает допустимый", {function: "saveImageFile", type: file.size});
-      throw new Error(`Размер изображения превышает допустимый: ${file.size} > ${MAX_IMAGE_FILE_SIZE_IN_BYTES}`);
-    }
-
-    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const imagePath = path.join(IMAGE_DIR, `${safeWord}.webp`);
-    try {
-        await access(imagePath);
-        return imagePath;
-    } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-            actionLogger.error("Нет доступа к папке с изображениями", {function: "saveImageFile", error: `${error instanceof Error ? error.message : error}`});
-            throw new Error(`Нет доступа к папке с изображениями: ${error instanceof Error ? error.message : error}`);
-        }
-    }
-
-    try {
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        await writeFile(imagePath, buffer);
-        return imagePath;
-    } catch (error) {
-        actionLogger.error("Ошибка при сохранении изображения", {function: "saveImageFile", error: `${error instanceof Error ? error.message : error}`});
-        throw new Error(`Ошибка при сохранении изображения: ${error instanceof Error ? error.message : error}`);
-    }
-}
-
-
 export async function generateWordAudio(word: string): Promise<{audioPath: string}> {
   try {
     const card = await prisma.wordCard.findUniqueOrThrow({
@@ -484,7 +450,7 @@ export async function generateWordAudio(word: string): Promise<{audioPath: strin
     await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
 
     const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const audioPath = path.join(AUDIO_DIR, `${safeWord}.ogg`);
+    const audioPath = path.join(STORAGE_DIR, AUDIO_DIR, `${safeWord}.ogg`);
 
     try {
       await prisma.wordCard.update({
@@ -505,56 +471,17 @@ export async function generateWordAudio(word: string): Promise<{audioPath: strin
 }
 
 
-export async function uploadFile(file: File, businessType: "audio" | "image"): Promise<{ id: string, originalName: string }> {
-  const allowedFileTypes = businessType === "audio" ? ALLOWED_AUDIO_TYPES : ALLOWED_IMAGE_TYPES;
-  const maxFileSize = businessType === "audio" ? MAX_AUDIO_FILE_SIZE_IN_BYTES : MAX_IMAGE_FILE_SIZE_IN_BYTES;
-  const targetFolder = businessType === "audio" ? AUDIO_DIR : IMAGE_DIR;
-
-  if (!allowedFileTypes.includes(file.type)) {
-    actionLogger.warn("Файл имеет неверный формат", {function: "uploadFile", type: file.type});
-    throw new Error(`Файл имеет неверный формат: ${file.type}`);
-  }
-
-  if (file.size > maxFileSize) {
-    actionLogger.warn("Размер файла превышает допустимый", {function: "uploadFile", type: file.size});
-    throw new Error(`Размер файла превышает допустимый: ${file.size} > ${maxFileSize}`);
-  }
-
-  const fileExtension = path.extname(file.name);
-  const fileId = crypto.randomUUID();
-  const uniqueFileName = `${fileId}.${fileExtension}`;
-  const filePath = path.join(targetFolder, uniqueFileName);
-
+export async function uploadFile(file: File, businessType: "audio" | "image"): Promise<{ id: string, originalName: string } | {error: string}> {
+  const session = await requireAdmin();
   try {
-      await mkdir(targetFolder, { recursive: true });
+    const uploadedFile = await uploadFileService(file, businessType);
+    return uploadedFile;
   } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
-          actionLogger.error("Нет доступа к папке с файлами", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
-          throw new Error(`Нет доступа к папке с файлами: ${error instanceof Error ? error.message : error}`);
+      actionLogger.error("Не удалось загрузить файл", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
+
+      if (error instanceof ValidationError) {
+          return { error: error.message };
       }
-  }
-
-  try {
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      await writeFile(filePath, buffer);
-      const savedFile = await prisma.file.create({
-        data: {
-          id: fileId,
-          path: filePath,
-          originalName: file.name,
-          mimeType: file.type,
-          size: file.size,
-        },
-        select: {
-          id: true,
-          originalName: true
-        }
-      });
-      return savedFile;
-  } catch (error) {
-      actionLogger.error("Ошибка при сохранении файла", {function: "uploadFile", error: `${error instanceof Error ? error.message : error}`});
-      throw new Error(`Ошибка при сохранении файла: ${error instanceof Error ? error.message : error}`);
+      return { error: "Неизвестная ошибка при записи файла" };
   }
 }

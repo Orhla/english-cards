@@ -5,8 +5,9 @@ export const YANDEX_LLM_API_KEY = process.env.YANDEX_LLM_API_KEY ?? "";
 export const FOLDER_ID = process.env.FOLDER_ID ?? "";
 export const NODE_ENV = process.env.NODE_ENV;
 
-export const AUDIO_DIR = "./public/audio";
-export const IMAGE_DIR = "./public/images/cards";
+export const STORAGE_DIR = "./public"
+export const AUDIO_DIR = "audio";
+export const IMAGE_DIR = "images/cards";
 
 export const YANDEX_BASE_URL = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize";
 export const YANDEX_TRANSLATE_BASE_URL = "https://translate.api.cloud.yandex.net/translate/v2/translate";
@@ -40,6 +41,18 @@ export const ALLOWED_IMAGE_TYPES = [
   'image/png',
   'image/webp',
 ];
+
+export const audioMimeToExt: Record<string, string> = {
+  'audio/mpeg': 'mpeg',
+  'audio/wav': 'wav',
+  'audio/ogg': 'ogg',
+}
+
+export const imageMimeToExt: Record<string, string> = {
+  'image/jpeg': 'jpeg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 
 export const MAX_AUDIO_FILE_SIZE_IN_BYTES = 5 * 1024 * 1024;
 export const MAX_IMAGE_FILE_SIZE_IN_BYTES = 2 * 1024 * 1024;
