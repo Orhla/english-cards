@@ -7,11 +7,9 @@ import path from "path";
 
 const filesLogger = logger.child({component: "files.ts"});
 
-// type ValidateFileStatus =
-//     | { success: true }
-//     | { success: false, message: string }
+export class ValidationError extends Error {}
 
-export function validateFile(file: File, businessType: AllowedFileType): string {
+export function validateFile(file: File, businessType: AllowedFileType): void {
     const allowedFileTypes = businessType === "audio" ? ALLOWED_AUDIO_TYPES : ALLOWED_IMAGE_TYPES;
     const maxFileSize = businessType === "audio" ? MAX_AUDIO_FILE_SIZE_IN_BYTES : MAX_IMAGE_FILE_SIZE_IN_BYTES;
 
@@ -25,8 +23,6 @@ export function validateFile(file: File, businessType: AllowedFileType): string 
         throw new ValidationError("Размер файла превышает допустимый");
     }
 }
-
-export class ValidationError extends Error {}
 
 export async function uploadFileService(file: File, businessType: AllowedFileType): Promise<{ id: string, originalName: string }> {
     validateFile(file, businessType);

@@ -1,12 +1,12 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { WordCard, businessType, partOfSpeech } from "@/generated/prisma/browser";
+import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
 import { AUDIO_DIR, ERROR_CARDS_NUMBER, LANGUAGES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
-import { WordCardWithInteractions } from "@/lib/types";
+import { AllowedFileType, WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
 import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
@@ -471,7 +471,7 @@ export async function generateWordAudio(word: string): Promise<{audioPath: strin
 }
 
 
-export async function uploadFile(file: File, businessType: "audio" | "image"): Promise<{ id: string, originalName: string } | {error: string}> {
+export async function uploadFile(file: File, businessType: AllowedFileType): Promise<{ id: string, originalName: string } | {error: string}> {
   const session = await requireAdmin();
   try {
     const uploadedFile = await uploadFileService(file, businessType);
