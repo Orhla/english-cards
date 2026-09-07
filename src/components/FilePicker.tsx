@@ -11,8 +11,8 @@ type FilePickerProps = {
   label: string
   businessType: AllowedFileType
   accept: string
-  multiple?: boolean                   
-  value: UploadedFile[]                
+  multiple?: boolean
+  value: UploadedFile[]
   onChange: (files: UploadedFile[]) => void
 }
 
@@ -38,12 +38,13 @@ export function FilePicker({ label, businessType, accept, multiple, value, onCha
         setError(errors[0].error);
         return;
       }
-      
+
       const successFiles = uploaded.filter((res): res is { id: string; originalName: string } => !('error' in res));
-      if (successFiles.length > 0) {
-        const next = multiple ? [...value, ...successFiles] : successFiles.slice(0, 1)
-        onChange(next)
-      }      
+      // onChange([...value, ...successFiles])
+      // if (successFiles.length > 0) {
+      const next = multiple ? [...value, ...successFiles] : successFiles.slice(0, 1)
+      onChange(next)
+      // }
     } catch {
       setError(error)
     } finally {
@@ -57,7 +58,7 @@ export function FilePicker({ label, businessType, accept, multiple, value, onCha
         <label htmlFor={businessType} className="text-sm font-medium text-foreground">{label}</label>
         <Input id={businessType}
                type="file"
-               accept={accept}
+               accept={businessType === "image" ? "image/*" : "audio/*"}
                disabled={isUploading}
                onChange={handleChange}
                multiple={multiple} />
@@ -65,7 +66,7 @@ export function FilePicker({ label, businessType, accept, multiple, value, onCha
             {value.map((file) => (
                 <div key={file.id} className="flex items-center justify-between p-2 border rounded-md">
                     {/* Имя файла со ссылкой */}
-                    <a href={`/api/files/${file.id}`}                                            
+                    <a href={`/api/files/${file.id}`}
                         className="text-blue-600 hover:underline truncate max-w-[200px]">
                         {file.originalName}
                     </a>

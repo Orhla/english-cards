@@ -39,11 +39,10 @@ export async function GET(
 
     console.log("bytes", !!fileBytes)
     const encodedName = encodeURIComponent(fileMeta.originalName).replace(/[!*'()]/g, '-');
-
     return new Response(new Uint8Array(fileBytes), {
         headers: {
             "Content-Type": fileMeta.mimeType,
-            "Content-Disposition": `attachment; filename="${encodedName}; filename*=UTF-8''${encodeURIComponent(encodedName)}"`
+            "Content-Disposition": `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`
         },
     })
 }
