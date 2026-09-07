@@ -134,7 +134,7 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         if (!wordValue) { alert("Сначала введите слово"); return }
 
         try {
-            const audioFilePath = await generateWordAudio(wordValue);
+            const audioFile = await generateWordAudio(wordValue);
             setAudioAutoFillError("Успех!");
         } catch (error) {
             setAudioAutoFillError(error instanceof Error ? error.message : "Ошибка при автогенерации аудио")

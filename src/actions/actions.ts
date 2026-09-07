@@ -442,32 +442,25 @@ export async function getAllTopics(): Promise<string[]> {
 }
 
 
-export async function generateWordAudio(word: string): Promise<{audioPath: string}> {
+export async function generateWordAudio(word: string): Promise<{id: string, originalName: string}> {
+  let card;
   try {
-    const card = await prisma.wordCard.findUniqueOrThrow({
-      where: { word }
-    });
-    await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
-
-    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const audioPath = path.join(STORAGE_DIR, AUDIO_DIR, `${safeWord}.ogg`);
-
-    try {
-      await prisma.wordCard.update({
-        where: { id: card.id },
-        data: {
-          audioPath: audioPath
-        },
+    card = await prisma.wordCard.findUniqueOrThrow({
+        where: { word }
       });
-    } catch (error) {
-      actionLogger.error("Не удалось обновить карточку", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
-      throw new Error(`Не удалось обновить карточку: ${error instanceof Error ? error.message : error}`);
-    }
-    return {audioPath};
   } catch (error) {
     actionLogger.warn("Карточка со словом не найдена", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
-    throw new Error(`Карточка со словом не найдена: ${error instanceof Error ? error.message : error}`);
+    throw new Error(`Карточка со словом не найдена`);
   }
+
+  try {
+    const savedFile = await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
+    return savedFile;
+  } catch (error) {
+    actionLogger.error("Не удалось сгенерировать аудиофайл", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
+    throw new Error(`Не удалось сгенерировать аудиофайл`);
+  }
+
 }
 
 
