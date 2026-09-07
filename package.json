@@ -13,7 +13,8 @@
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "generate-audio": "tsx scripts/generate-audio.ts",
-    "db:seed-topics": "tsx prisma/seed-topics.ts"
+    "db:seed-topics": "tsx prisma/seed-topics.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
