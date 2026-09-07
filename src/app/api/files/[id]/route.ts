@@ -4,7 +4,8 @@
 import {requireLogin} from "@/lib/dal";
 import {prisma} from "@/lib/prisma";
 import {readFromStorage} from "@/services/file-storage";
-import {IMAGE_DIR} from "@/lib/consts";
+import {AUDIO_DIR, audioMimeToExt, IMAGE_DIR} from "@/lib/consts";
+import path from "path";
 
 export async function GET(
     _req: Request,
@@ -28,30 +29,20 @@ export async function GET(
     }
     console.log("fileMeta", fileMeta)
 
-
-    const fileBytes = await readFromStorage(IMAGE_DIR + "/" + fileMeta.path)
+    let fileBytes = null;
+    if (fileMeta.mimeType in audioMimeToExt) {
+        fileBytes = await readFromStorage(path.join(AUDIO_DIR, fileMeta.path))
+    }
+    else {
+        fileBytes = await readFromStorage(path.join(IMAGE_DIR, fileMeta.path))
+    }
 
     console.log("bytes", !!fileBytes)
-    // Prevent path traversal: only allow the bare filename, no slashes
-    // if (filename !== basename(filename)) {
-    //     return new Response("Bad Request", { status: 400 })
-    // }
-
-    // const filePath = join(process.cwd(), "data", filename)
-    // let data: Buffer
-    // try {
-    //     data = await readFile(filePath)
-    // } catch {
-    //     return new Response("Not Found", { status: 404 })
-    // }
-    //
-    // const ext = filename.split(".").pop()?.toLowerCase()
-    // const contentType = ext === "ogg" ? "audio/ogg" : "application/octet-stream"
-
-    return new Response(fileBytes, {
+    const encodedName = encodeURIComponent(fileMeta.originalName).replace(/[!*'()]/g, '-');
+    return new Response(new Uint8Array(fileBytes), {
         headers: {
             "Content-Type": fileMeta.mimeType,
-            "Content-Disposition": `attachment; filename="${fileMeta.originalName}"`
+            "Content-Disposition": `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`
         },
     })
 }

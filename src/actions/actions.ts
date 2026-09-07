@@ -1,12 +1,12 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { WordCard, businessType, partOfSpeech } from "@/generated/prisma/browser";
+import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
 import { AUDIO_DIR, ERROR_CARDS_NUMBER, LANGUAGES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
-import { WordCardWithInteractions } from "@/lib/types";
+import { AllowedFileType, WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
 import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
@@ -442,36 +442,29 @@ export async function getAllTopics(): Promise<string[]> {
 }
 
 
-export async function generateWordAudio(word: string): Promise<{audioPath: string}> {
+export async function generateWordAudio(word: string): Promise<{id: string, originalName: string}> {
+  let card;
   try {
-    const card = await prisma.wordCard.findUniqueOrThrow({
-      where: { word }
-    });
-    await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
-
-    const safeWord = path.basename(word).replace(/[\/\\?%*:|"<>]/g, '-');
-    const audioPath = path.join(STORAGE_DIR, AUDIO_DIR, `${safeWord}.ogg`);
-
-    try {
-      await prisma.wordCard.update({
-        where: { id: card.id },
-        data: {
-          audioPath: audioPath
-        },
+    card = await prisma.wordCard.findUniqueOrThrow({
+        where: { word }
       });
-    } catch (error) {
-      actionLogger.error("Не удалось обновить карточку", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
-      throw new Error(`Не удалось обновить карточку: ${error instanceof Error ? error.message : error}`);
-    }
-    return {audioPath};
   } catch (error) {
     actionLogger.warn("Карточка со словом не найдена", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
-    throw new Error(`Карточка со словом не найдена: ${error instanceof Error ? error.message : error}`);
+    throw new Error(`Карточка со словом не найдена`);
   }
+
+  try {
+    const savedFile = await generateEnglishAudioFile(card, LANGUAGES.ENGLISH_US_LANG_CODE);
+    return savedFile;
+  } catch (error) {
+    actionLogger.error("Не удалось сгенерировать аудиофайл", {function: "generateWordAudio", error: `${error instanceof Error ? error.message : error}`});
+    throw new Error(`Не удалось сгенерировать аудиофайл`);
+  }
+
 }
 
 
-export async function uploadFile(file: File, businessType: "audio" | "image"): Promise<{ id: string, originalName: string } | {error: string}> {
+export async function uploadFile(file: File, businessType: AllowedFileType): Promise<{ id: string, originalName: string } | {error: string}> {
   const session = await requireAdmin();
   try {
     const uploadedFile = await uploadFileService(file, businessType);

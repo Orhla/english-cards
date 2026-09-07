@@ -4,7 +4,7 @@ import { startTransition, useActionState, useState } from "react"
 import { useForm, useFieldArray, FormProvider } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { generateWordAudio, uploadFile, wordCardFormAction, WordCardFormPayload } from "@/actions/actions"
+import { generateWordAudio, wordCardFormAction, WordCardFormPayload } from "@/actions/actions"
 import { WordCard, partOfSpeech } from "@/generated/prisma/browser"
 import { Loader2, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import ArrayFieldInput from "@/components/ArrayFieldInput"
 import { getWordTranscription, getWordTranslations } from "@/actions/actions_translate"
 import { enrichWordCard } from "@/actions/actions_yagpt"
 import { AllowedFileType } from "@/lib/types"
+import { FilePicker } from "@/components/FilePicker"
 
 const AVAILABLE_PARTS_OF_SPEECH = Object.values(partOfSpeech)
 
@@ -84,12 +85,6 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
     const [autoFillError, setAutoFillError] = useState<string | null>(null)
     const [audioAutoFillError, setAudioAutoFillError] = useState<string | null>(null)
 
-    const [isUploadingAudio, setIsUploadingAudio] = useState(false);
-    const [audioUploadError, setAudioUploadError] = useState<string | null>(null);
-
-    const [isUploadingImage, setIsUploadingImage] = useState(false);
-    const [imageUploadError, setImageUploadError] = useState<string | null>(null)
-
     const handleAutoFill = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.preventDefault()
         const wordValue = getValues("word").trim()
@@ -139,79 +134,13 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
         if (!wordValue) { alert("Сначала введите слово"); return }
 
         try {
-            const audioFilePath = await generateWordAudio(wordValue);
+            const audioFileDto = await generateWordAudio(wordValue);
+            setValue("audioFiles", [audioFileDto])
             setAudioAutoFillError("Успех!");
         } catch (error) {
             setAudioAutoFillError(error instanceof Error ? error.message : "Ошибка при автогенерации аудио")
             console.error("Ошибка при автогенерации аудио:", error instanceof Error ? error.message : "")
         }
-    }
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, businessType: AllowedFileType) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-
-        if (businessType === "audio") {
-            setIsUploadingAudio(true);
-            setAudioUploadError(null);
-        }
-
-        if (businessType === "image") {
-            setIsUploadingImage(true);
-            setImageUploadError(null);
-        }
-
-        try {
-            const uploadPromises = Array.from(files).map(async (file) => {
-                const serverFile = await uploadFile(file, businessType);
-                if ("error" in serverFile) {
-                    if (businessType === "audio") {
-                        setAudioUploadError(serverFile.error);
-                    } else if (businessType === "image") {
-                        setImageUploadError(serverFile.error);
-                    }
-                    return;
-                }
-
-                return {
-                    id: serverFile.id,
-                    originalName: serverFile.originalName,
-                    businessType: businessType
-                };
-            });
-
-            const newUploadedFiles = await Promise.all(uploadPromises);
-            const validNewFiles = newUploadedFiles.filter((file): file is NonNullable<typeof file> => !!file);
-            const fileKey = businessType === "audio" ? "audioFiles" : "imageFiles";
-            const uploadedFiles = [...(getValues(fileKey) || []), ...validNewFiles];
-
-            setValue(fileKey, uploadedFiles);
-        } catch (error) {
-            console.error("Ошибка при загрузке файла", error instanceof Error ? error.message : error);
-
-            if (businessType === "audio") {
-                setAudioUploadError(error instanceof Error ? error.message : "Ошибка при загрузке аудио");
-            }
-            if (businessType === "image") {
-                setImageUploadError(error instanceof Error ? error.message : "Ошибка при загрузке изображения");
-            }
-        } finally {
-            if (businessType === "audio") {
-                setIsUploadingAudio(false);
-            }
-            if (businessType === "image") {
-                setIsUploadingImage(false);
-            }
-            e.target.value = "";
-        }
-    }
-
-    const handleAudioChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        await handleFileChange(e, "audio");
-    }
-
-    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        await handleFileChange(e, "image");
     }
 
     const onSubmit = handleSubmit((data) => {
@@ -280,17 +209,13 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
 
                         {/* Аудиофайл */}
                         <div className="space-y-1.5">
-                            <label htmlFor="audio" className="text-sm font-medium text-foreground">Аудиофайл</label>
-
-                            <div className="flex items-start gap-2">
-                                <Input id="audio"
-                                    type="file"
-                                    accept="audio/*"
-                                    disabled={isPending || isUploadingAudio}
-                                    onChange={handleAudioChange}
-                                    multiple />
-
-                                {isEditMode && (
+                            <FilePicker label="Аудиофайл"
+                                        businessType="audio"
+                                        accept="audio/*"
+                                        value={audioFiles}
+                                        multiple={true}
+                                        onChange={(f) => setValue("audioFiles", f)} />
+                            {isEditMode && (
                                     <div className="flex flex-col gap-1 shrink-0">
                                         <button type="button"
                                                 disabled={isPending}
@@ -299,13 +224,6 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                                             Сгенерировать аудио
                                         </button>
                                     </div> )}
-                            </div>
-
-                            {audioUploadError && (
-                                <p className="text-sm text-destructive">
-                                    {audioUploadError}
-                                </p>
-                            )}
 
                             {isEditMode && audioAutoFillError && (
                                 <p className="text-sm text-destructive">
@@ -315,25 +233,12 @@ export default function AdminCardForm({ card, mode, allTopics }: Props) {
                         </div>
 
                         {/* Изображение */}
-                        <div className="space-y-1.5">
-                            <label htmlFor="image" className="text-sm font-medium text-foreground">Изображение</label>
-                            <Input id="image"
-                                type="file"
-                                accept="image/*"
-                                disabled={isPending || isUploadingImage}
-                                onChange={handleImageChange}
-                                multiple />
-                            {getValues("imageFiles")
-                                .map(file =>(<a href={`http://localhost:3000/${file.id}`} key={file.id}>
-                                    {`http://localhost:3000/${file.originalName}`}
-                                </a>))}
-
-                            {imageUploadError && (
-                                <p className="text-sm text-destructive">
-                                    {imageUploadError}
-                                </p>
-                            )}
-                        </div>
+                        <FilePicker label="Изображение"
+                                        businessType="image"
+                                        accept="image/*"
+                                        value={imageFiles}
+                                        multiple={true}
+                                        onChange={(f) => setValue("imageFiles", f)} />
 
                         {/* Части речи */}
                         <div className="space-y-3">
