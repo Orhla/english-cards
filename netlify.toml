@@ -1,2 +1,5 @@
+[build]
+  command = "npx prisma generate && next build"
+
 [functions]
   included_files = ["src/generated/prisma/**/*.node"]
