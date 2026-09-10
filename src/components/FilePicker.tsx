@@ -18,14 +18,14 @@ type FilePickerProps = {
 
 export function FilePicker({ label, businessType, accept, multiple, value, onChange }: FilePickerProps) {
   const [isUploading, setIsUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [filePickerError, setFilePickerError] = useState<string | null>(null)
 
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
-    setError(null);
+    setFilePickerError(null);
 
     try {
       const uploaded = await Promise.all(
@@ -35,18 +35,16 @@ export function FilePicker({ label, businessType, accept, multiple, value, onCha
       const errors = uploaded.filter((res): res is { error: string } => 'error' in res);
       if (errors.length > 0) {
         console.log("Ошибки errors:", errors)
-        setError(errors[0].error);
+        setFilePickerError(errors[0].error);
         return;
       }
 
       const successFiles = uploaded.filter((res): res is { id: string; originalName: string } => !('error' in res));
-      // onChange([...value, ...successFiles])
-      // if (successFiles.length > 0) {
       const next = multiple ? [...value, ...successFiles] : successFiles.slice(0, 1)
       onChange(next)
-      // }
-    } catch {
-      setError(error)
+    } catch (error) {
+      console.error(`Ошибка загрузки файлов: ${error}`)
+      setFilePickerError("Ошибка загрузки файлов")
     } finally {
       setIsUploading(false)
       e.target.value = "";
@@ -94,9 +92,9 @@ export function FilePicker({ label, businessType, accept, multiple, value, onCha
             ))}
         </div>
 
-        {error && (
+        {filePickerError && (
             <p className="text-sm text-destructive">
-                {error}
+                {filePickerError}
             </p>
         )}
     </div>

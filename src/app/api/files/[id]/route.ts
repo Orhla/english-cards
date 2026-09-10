@@ -1,11 +1,8 @@
-// import { auth } from "@/auth"
-// import { readFile } from "fs/promises"
-// import { join, basename } from "path"
 import {requireLogin} from "@/lib/dal";
 import {prisma} from "@/lib/prisma";
-import {readFromStorage} from "@/services/file-storage";
 import {AUDIO_DIR, audioMimeToExt, IMAGE_DIR} from "@/lib/consts";
 import path from "path";
+import { getProvider, readStreamFromStorage } from "@/services/storage";
 
 export async function GET(
     _req: Request,
@@ -21,25 +18,29 @@ export async function GET(
 
     const fileMeta = await  prisma.file.findUnique({
         where: { id },
-        // select: { id: true, filename: true, userId: true }
     })
 
     if (!fileMeta) {
         return new Response("Not Found", { status: 404 })
     }
-    console.log("fileMeta", fileMeta)
 
-    let fileBytes = null;
+    // const provider = getProvider()
+
+    // if (provider.getSignedUrl) {
+    //     const url = await provider.getSignedUrl(fileMeta.path)
+    //     return Response.redirect(url, 302)
+    // }
+
+    let stream = null;
     if (fileMeta.mimeType in audioMimeToExt) {
-        fileBytes = await readFromStorage(path.join(AUDIO_DIR, fileMeta.path))
+        stream = await readStreamFromStorage(path.join(AUDIO_DIR, fileMeta.path))
     }
     else {
-        fileBytes = await readFromStorage(path.join(IMAGE_DIR, fileMeta.path))
-    }
+        stream = await readStreamFromStorage(path.join(IMAGE_DIR, fileMeta.path))
+    }    
 
-    console.log("bytes", !!fileBytes)
     const encodedName = encodeURIComponent(fileMeta.originalName).replace(/[!*'()]/g, '-');
-    return new Response(new Uint8Array(fileBytes), {
+    return new Response(stream, {
         headers: {
             "Content-Type": fileMeta.mimeType,
             "Content-Disposition": `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`

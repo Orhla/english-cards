@@ -2,8 +2,8 @@ import { ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, AUDIO_DIR, audioMimeToExt, IM
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { AllowedFileType } from "@/lib/types";
-import { deleteFromStorage, readFromStorage, saveToStorage } from "@/services/file-storage";
 import path from "path";
+import { deleteFromStorage, readFromStorage, saveToStorage } from "@/services/storage";
 
 const filesLogger = logger.child({component: "files.ts"});
 

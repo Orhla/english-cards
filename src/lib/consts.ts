@@ -4,6 +4,7 @@ export const YANDEX_DICTIONARY_API_KEY = process.env.YANDEX_DICTIONARY_API_KEY ?
 export const YANDEX_LLM_API_KEY = process.env.YANDEX_LLM_API_KEY ?? "";
 export const FOLDER_ID = process.env.FOLDER_ID ?? "";
 export const NODE_ENV = process.env.NODE_ENV;
+export const BUCKET = process.env.SUPABASE_BUCKET ?? "files"
 
 export const STORAGE_DIR = "./public"
 export const AUDIO_DIR = "audio";
