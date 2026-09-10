@@ -1,2 +1,5 @@
 [build]
   command = "npx prisma generate && echo '=== Generated Prisma files ===' && ls -la src/generated/prisma/ && next build"
+
+[build.environment]
+  AUTH_TRUST_HOST = "true"
