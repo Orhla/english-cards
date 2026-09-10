@@ -2,7 +2,7 @@ import { diskProvider } from "@/services/storage/disk"
 import { supabaseProvider } from "@/services/storage/supabase"
 import type { StorageProvider } from "@/services/storage/provider"
 
-export function getProvider(): StorageProvider {
+function getProvider(): StorageProvider {
   const p = process.env.STORAGE_PROVIDER
   if (p === "supabase") return supabaseProvider
   return diskProvider
@@ -19,6 +19,6 @@ export const deleteFromStorage = (key: string)              => provider.deleteFi
 //   if (!provider.getSignedUrl) {
 //     throw new Error(`Метод getSignedUrlFromStorage не поддерживается текущим провайдером (${process.env.STORAGE_PROVIDER || "disk"})`);
 //   }
-  
+
 //   return provider.getSignedUrl(key, expiresInSeconds);
 // };

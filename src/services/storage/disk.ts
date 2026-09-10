@@ -13,7 +13,7 @@ export const diskProvider: StorageProvider = {
     async save(key: string, data: Buffer): Promise<void> {
         try {
             const filePath = path.join(STORAGE_DIR, key);
-            await writeFile(filePath, data);            
+            await writeFile(filePath, data);
         } catch (error) {
             fileStorageLogger.error("Ошибка при сохранении файла в хранилище", {function: "save", error: `${error instanceof Error ? error.message : error}`});
             throw new Error(`Ошибка при сохранении файла`);
@@ -33,7 +33,7 @@ export const diskProvider: StorageProvider = {
     },
 
 
-    async readStream(key: string): Promise<ReadableStream<Uint8Array>> {
+    readStream(key: string): ReadableStream<Uint8Array> {
         try {
             const filePath = path.join(STORAGE_DIR, key)
             const nodeStream = createReadStream(filePath)

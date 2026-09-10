@@ -8,7 +8,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const supabaseStorageLogger = logger.child({component: "disk.ts"})
+const supabaseStorageLogger = logger.child({component: "supabase.ts"})
 
 export const supabaseProvider: StorageProvider = {
 
@@ -22,7 +22,7 @@ export const supabaseProvider: StorageProvider = {
 
 
     async read(key: string): Promise<Buffer> {
-        const { data, error } = await supabase.storage.from(BUCKET).download(key);        
+        const { data, error } = await supabase.storage.from(BUCKET).download(key);
         if (error) {
             supabaseStorageLogger.error("Ошибка при чтении файла из хранилища", {function: "read", error: `${error instanceof Error ? error.message : error}`});
             throw error;
@@ -32,13 +32,29 @@ export const supabaseProvider: StorageProvider = {
     },
 
 
-    async readStream(key: string): Promise<ReadableStream<Uint8Array>> {
-        const { data, error } = await supabase.storage.from(BUCKET).download(key)
-        if (error || !data) {
-            supabaseStorageLogger.error("Ошибка при чтении потока", {function: "readStream", error: `${error instanceof Error ? error.message : error}`});
-            throw new Error(error?.message ?? "Not found")
-        }
-        return data.stream() as ReadableStream<Uint8Array>
+    readStream(key: string): ReadableStream<Uint8Array> {
+        const url = `${process.env.SUPABASE_URL}/storage/v1/object/${BUCKET}/${key}`
+        return new ReadableStream({
+            async start(controller) {
+                const response = await fetch(url, {
+                    headers: { Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` }
+                })
+                if (!response.ok) {
+                    controller.error(new Error(`Storage fetch failed: ${response.status}`))
+                    return
+                }
+                const reader = response.body!.getReader()
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read()
+                        if (done) { controller.close(); break }
+                        controller.enqueue(value)
+                    }
+                } catch (err) {
+                    controller.error(err)
+                }
+            },
+        })
     },
 
 
@@ -56,7 +72,7 @@ export const supabaseProvider: StorageProvider = {
     //     if (error || !data) {
     //         supabaseStorageLogger.error("Ошибка при получении ссылки на файл", {function: "getSignedUrl", error: `${error instanceof Error ? error.message : error}`});
     //         throw new Error(error?.message ?? "Failed to sign URL")
-    //     } 
+    //     }
     //     return data.signedUrl
     // }
 
