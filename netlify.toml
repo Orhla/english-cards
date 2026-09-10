@@ -1,5 +1,2 @@
 [build]
-  command = "npx prisma generate && next build"
-
-[functions]
-  included_files = ["src/generated/prisma/**/*.node"]
+  command = "npx prisma generate && echo '=== Generated Prisma files ===' && ls -la src/generated/prisma/ && next build"
