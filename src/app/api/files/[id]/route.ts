@@ -1,11 +1,8 @@
-// import { auth } from "@/auth"
-// import { readFile } from "fs/promises"
-// import { join, basename } from "path"
 import {requireLogin} from "@/lib/dal";
 import {prisma} from "@/lib/prisma";
-import {readFromStorage} from "@/services/file-storage";
 import {AUDIO_DIR, audioMimeToExt, IMAGE_DIR} from "@/lib/consts";
 import path from "path";
+import { readStreamFromStorage } from "@/services/storage";
 
 export async function GET(
     _req: Request,
@@ -21,25 +18,35 @@ export async function GET(
 
     const fileMeta = await  prisma.file.findUnique({
         where: { id },
-        // select: { id: true, filename: true, userId: true }
     })
 
     if (!fileMeta) {
         return new Response("Not Found", { status: 404 })
     }
-    console.log("fileMeta", fileMeta)
 
-    let fileBytes = null;
-    if (fileMeta.mimeType in audioMimeToExt) {
-        fileBytes = await readFromStorage(path.join(AUDIO_DIR, fileMeta.path))
-    }
-    else {
-        fileBytes = await readFromStorage(path.join(IMAGE_DIR, fileMeta.path))
-    }
+    // const provider = getProvider()
 
-    console.log("bytes", !!fileBytes)
+    // if (provider.getSignedUrl) {
+    //     const url = await provider.getSignedUrl(fileMeta.path)
+    //     return Response.redirect(url, 302)
+    // }
+
+    const dir = fileMeta.mimeType in audioMimeToExt ? AUDIO_DIR : IMAGE_DIR
+    const discStream = readStreamFromStorage(path.join(dir, fileMeta.path))
+
+    const { readable, writable } = new TransformStream({
+        transform(chunk: Uint8Array, controller) {
+            console.log(`Stream chunk: ${chunk.byteLength} bytes`)
+            controller.enqueue(chunk)
+        }
+    })
+
+    discStream.pipeTo(writable).catch(err => {
+        console.error("Stream error:", err)
+    })
+
     const encodedName = encodeURIComponent(fileMeta.originalName).replace(/[!*'()]/g, '-');
-    return new Response(new Uint8Array(fileBytes), {
+    return new Response(readable, {
         headers: {
             "Content-Type": fileMeta.mimeType,
             "Content-Disposition": `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`

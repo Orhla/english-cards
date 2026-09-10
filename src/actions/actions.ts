@@ -5,10 +5,9 @@ import { WordCard, partOfSpeech } from "@/generated/prisma/browser";
 import { redirect } from "next/navigation";
 import { requireAdmin, requireLogin } from "@/lib/dal";
 import { revalidatePath } from "next/cache";
-import { AUDIO_DIR, ERROR_CARDS_NUMBER, LANGUAGES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER, STORAGE_DIR } from "@/lib/consts";
+import { ERROR_CARDS_NUMBER, LANGUAGES, MAX_CARDS_NUMBER, MIN_CARDS_NUMBER, NEW_CARDS_NUMBER } from "@/lib/consts";
 import { AllowedFileType, WordCardWithInteractions } from "@/lib/types";
 import { logger } from "@/lib/logger";
-import path from "path";
 import { generateEnglishAudioFile } from "@/lib/yandex-generate-audio";
 import {uploadFileService, ValidationError} from "@/services/files";
 
