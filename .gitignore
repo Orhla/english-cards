@@ -43,8 +43,7 @@ next-env.d.ts
 
 # database-data
 /postgres-data*
-/src/generated/prisma/*
-!/src/generated/prisma/libquery_engine-rhel-openssl-3.0.x.so.node
+/src/generated/prisma
 
 # generated audio files
 /public/audio/
